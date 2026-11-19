@@ -1,0 +1,7 @@
+{
+  "appId": "com.sarangorder.app",
+  "appName": "Sarang Order",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}
