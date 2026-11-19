@@ -67,7 +67,8 @@ test('sign-up: store stays hidden until the super-admin approves it', async () =
   const t = await h.db.one('tenants', { slug: 'cake' });
   await h.call('POST', `/api/super/tenants/${t.id}/approve`, { token: sup.body.token });
   const st = await h.call('GET', '/api/store', { tenant: 'cake' });
-  assert.equal(st.status, 200); assert.equal(st.body.theme.primary, '#112233'); assert.equal(st.body.theme.font, 'Nunito');
+  assert.equal(st.status, 200); assert.equal(st.body.theme.primary, '#112233'); assert.equal(st.body.theme.font, 'Plus Jakarta Sans');
+  assert.deepEqual((await h.call('GET', '/api/directory')).body.stores.map(s => s.slug), ['cake']);
   // a store owner is not a super-admin
   assert.equal((await h.call('GET', '/api/super/tenants', { token: su.body.token })).status, 401);
 });
