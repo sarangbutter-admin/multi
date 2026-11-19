@@ -30,9 +30,9 @@
     try {
       const { stores } = await api('GET', '/api/directory');
       $('#stores').innerHTML = stores.length ? stores.map(s => `
-        <button class="store-tile" data-slug="${esc(s.slug)}" style="--tile-bg:${esc(s.background)};--tile-primary:${esc(s.primary)};--tile-on:${SO.onColor(s.primary)};--tile-ink:#13241B">
+        <button class="store-tile" data-slug="${esc(s.slug)}" style="--tile-bg:${esc(s.background)};--tile-primary:${esc(s.primary)};--tile-on:${SO.onColor(s.primary)};--tile-ink:${SO.onColor(s.background)}">
           <span class="mark">${s.logo ? `<img src="${esc(s.logo)}" alt="">` : esc(s.name.slice(0, 1))}</span>
-          <span><b>${esc(s.name)}</b><span>${esc(s.about || '')}</span></span></button>`).join('') : '<p class="muted">No stores are open yet.</p>';
+          <span><b>${esc(s.name)}</b><span class="about">${esc(s.about || '')}</span></span></button>`).join('') : '<p class="muted">No stores are open yet.</p>';
       $$('.store-tile').forEach(b => (b.onclick = () => enterStore(b.dataset.slug, true).catch(fatal)));
     } catch (e) { $('#stores').innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
   }

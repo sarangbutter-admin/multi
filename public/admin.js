@@ -291,7 +291,7 @@
         <h3>Colours</h3><div class="swatches">${COLORS.map(([k, l]) => `<label class="sw"><input type="color" name="${k}" value="${esc(th[k])}"><span>${l}<code>${esc(th[k])}</code></span></label>`).join('')}</div>
         <div class="cols">${field('Font', 'font', th.font, { type: 'select', options: fonts.map(f => [f, f]) })}
           ${field('Menu layout', 'layout', th.layout, { type: 'select', options: [['grid', 'Photo grid'], ['list', 'List']] })}
-          ${field('Mode', 'mode', th.mode, { type: 'select', options: [['light', 'Light'], ['dark', 'Dark']] })}</div>
+          ${field('Start from', 'mode', th.mode, { type: 'select', options: [['light', 'Light colours'], ['dark', 'Dark colours']], attrs: 'aria-describedby="mode-hint"' })}</div><p class="muted small" id="mode-hint" style="margin:6px 0 0">Picking light or dark fills in background, cards and text colours. You can still change each one.</p>
         ${field('Corner roundness', 'radius', th.radius, { type: 'range', attrs: 'min="0" max="32" step="1"' })}
         ${field('Logo link', 'logo', th.logo, { type: 'url', hint: 'square image, https://', attrs: 'placeholder="https://"' })}
         ${field('Banner link', 'banner', th.banner, { type: 'url', hint: 'wide image, optional', attrs: 'placeholder="https://"' })}
@@ -308,6 +308,8 @@
         <div class="p-body"><div class="p-cat">Popular</div><div class="p-${t.layout}">${card('Butter cookies', 55000)}${card('Brownie box', 80000)}${card('Cheese tart', 45000)}${card('Iced latte', 28000)}</div></div>
         <div class="p-bar"><span>2 items</span><span>${money(135000)}</span></div>`;
     };
+    const PRESETS = { light: { background: '#F3F7F2', surface: '#FFFFFF', text: '#13241B' }, dark: { background: '#10201A', surface: '#18302A', text: '#EAF4E4' } };
+    f.elements.mode.onchange = e => { for (const [k, v] of Object.entries(PRESETS[e.target.value])) f.elements[k].value = v; draw(); };
     f.oninput = draw; draw();
     $('#reset').onclick = () => lookView();
     bindForm(f, async v => { v.radius = Number(v.radius); A.store.theme = (await call('PUT', '/api/admin/theme', v)).theme; }, 'Look saved. Customers see it on their next visit.');
