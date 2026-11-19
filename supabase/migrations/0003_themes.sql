@@ -1,7 +1,7 @@
 -- Theme packages: stores can pick a built-in theme, upload their own, or use one shared in the theme store.
 -- Run after 0002. Safe to run twice.
 
-alter table public.tenants add column if not exists theme_ref text not null default 'market';  -- built-in name or themes.id
+alter table public.tenants add column if not exists theme_ref text not null default 'bold';  -- built-in name or themes.id
 
 create table if not exists public.themes (
   id          uuid primary key default gen_random_uuid(),

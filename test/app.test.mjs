@@ -67,7 +67,7 @@ test('sign-up: store stays hidden until the super-admin approves it', async () =
   const t = await h.db.one('tenants', { slug: 'cake' });
   await h.call('POST', `/api/super/tenants/${t.id}/approve`, { token: sup.body.token });
   const st = await h.call('GET', '/api/store', { tenant: 'cake' });
-  assert.equal(st.status, 200); assert.equal(st.body.theme.primary, '#112233'); assert.equal(st.body.theme.font, 'Outfit'); assert.equal(st.body.theme_ref, 'market');
+  assert.equal(st.status, 200); assert.equal(st.body.theme.primary, '#112233'); assert.equal(st.body.theme.font, 'Space Grotesk'); assert.equal(st.body.theme_ref, 'bold');
   assert.deepEqual((await h.call('GET', '/api/directory')).body.stores.map(s => s.slug), ['cake']);
   // a store owner is not a super-admin
   assert.equal((await h.call('GET', '/api/super/tenants', { token: su.body.token })).status, 401);
@@ -409,9 +409,9 @@ test('themes: upload, preview, share to the theme store, approve, use, delete', 
     'my-theme/templates/layout.html': '<h1>{{settings.title}}</h1>{{#products}}{{> card}}{{/products}}',
     'my-theme/templates/card.html': '<div data-card="{{id}}">{{name}}</div>' }).toString('base64');
 
-  // the gallery starts with the built-ins; Market is the default
+  // the gallery starts with the built-ins; Bold is the default
   let g = await h.call('GET', '/api/admin/themes', A.o);
-  assert.equal(g.body.current, 'market'); assert.deepEqual(g.body.themes.map(t => t.ref).sort(), ['bold', 'classic', 'market']);
+  assert.equal(g.body.current, 'bold'); assert.deepEqual(g.body.themes.map(t => t.ref).sort(), ['bold', 'classic', 'market']);
   // bad uploads are refused with a reason
   assert.equal((await h.call('POST', '/api/admin/themes', { ...A.o, body: { zip: 'not base64!' } })).body.error, 'bad_theme');
   const evil = writeZip({ 'theme.json': '{"name":"Evil"}', 'templates/layout.html': '<script>steal()</script>', 'templates/card.html': '<div data-card="{{id}}"></div>' }).toString('base64');
@@ -456,7 +456,7 @@ test('themes: upload, preview, share to the theme store, approve, use, delete', 
   // only the owner store can delete it; everyone using it goes back to Market
   assert.equal((await h.call('DELETE', `/api/admin/themes/${id}`, B.o)).status, 404);
   assert.equal((await h.call('DELETE', `/api/admin/themes/${id}`, A.o)).status, 200);
-  assert.equal((await h.call('GET', '/api/store', { tenant: 'bravo' })).body.theme_ref, 'market');
+  assert.equal((await h.call('GET', '/api/store', { tenant: 'bravo' })).body.theme_ref, 'bold');
   assert.equal((await h.call('GET', `/api/themes/${id}/package`, {})).status, 404);
 });
 

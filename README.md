@@ -16,7 +16,7 @@ Midtrans · DOKU · Biteship webhooks ─────────┘        │
 |---|---|
 | **Tenants** | Self sign-up → store is `pending` (owner can set it up) → you approve in super-admin → `active`. Suspend any time. |
 | **Which store?** | `X-Tenant: <slug>` header (the shared app), `<slug>.PLATFORM_DOMAIN`, or a custom domain you add. |
-| **Themes** | Each store picks a theme (built in: **Market**, the default, and **Classic**), changes its colours, pictures and words with a live preview, or uploads its own theme .zip. Stores can share themes in a theme store the platform admin approves. Themes are HTML templates + CSS, no scripts. See [THEMES.md](THEMES.md). |
+| **Themes** | Each store picks a theme (built in: **Bold**, the default, **Market** and **Classic**), changes its colours, pictures and words with a live preview, or uploads its own theme .zip. Stores can share themes in a theme store the platform admin approves. Themes are HTML templates + CSS, no scripts. See [THEMES.md](THEMES.md). |
 | **Quick view** | Every product card in every theme has quick view: photo, options, quantity and add, without leaving the page. |
 | **Per-store keys** | Midtrans, DOKU, Biteship, Turnstile. AES-256-GCM encrypted with `MASTER_KEY`; shown masked; owner-only. |
 | **Payments** | Midtrans Snap, DOKU Checkout, manual transfer (staff confirms). Webhooks verified by signature + amount, safe to repeat. |

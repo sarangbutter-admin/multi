@@ -128,7 +128,7 @@ The browser also removes anything unsafe from the rendered page. This keeps cust
 
 In **Look → Theme library**, press **Share in the theme store** on your upload. The platform admin previews it and approves it,
 or turns it down with a note. Approved themes appear in every store's library. Uploading a new version sends it back for review;
-stores already using it keep working. Deleting a theme moves every store that used it back to Market.
+stores already using it keep working. Deleting a theme moves every store that used it back to Bold.
 
 ## Built-in themes
 

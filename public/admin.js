@@ -372,7 +372,7 @@
     act('[data-share]', async b => { await call('POST', `/api/admin/themes/${b.dataset.share}/submit`); toast('Sent for review. It appears in the theme store once approved.'); lookView(); });
     act('[data-unshare]', async b => { await call('POST', `/api/admin/themes/${b.dataset.unshare}/withdraw`); toast('No longer shared. Stores already using it keep it.'); lookView(); });
     act('[data-del]', async b => {
-      if (!confirm('Delete this theme? Any store using it goes back to the Market theme.')) return busy(b, false);
+      if (!confirm('Delete this theme? Any store using it goes back to the Bold theme.')) return busy(b, false);
       await call('DELETE', `/api/admin/themes/${b.dataset.del}`); A.store = await call('GET', '/api/admin/store'); toast('Theme deleted'); lookView();
     });
     $$('[data-pre]').forEach(b => (b.onclick = () => {
