@@ -1,7 +1,7 @@
 // Local dev server with an in-memory database and demo data: npm run dev → http://localhost:8888
-//   demo coupon WELCOME10, business login corner.shop / demo-password-1 (store: sarang)
-//   shop:        http://localhost:8888/?store=sarang
-//   back office: http://localhost:8888/admin   (Store address box: sarang → owner@sarang.test / demo-password-1; leave the box empty for platform admin admin@demo.test / demo-admin-pass)
+//   demo coupon WELCOME10, business login corner.shop / demo-password-1 (store: fresh-basket)
+//   shop:        http://localhost:8888/?store=fresh-basket
+//   back office: http://localhost:8888/admin   (Store address box: fresh-basket → owner@fresh-basket.test / demo-password-1; leave the box empty for platform admin admin@demo.test / demo-admin-pass)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,4 +29,4 @@ http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
   const r = await app.handle(new Request(url, { method: req.method, headers: req.headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks) }));
   res.writeHead(r.status, Object.fromEntries(r.headers)); res.end(Buffer.from(await r.arrayBuffer()));
-}).listen(8888, () => console.log('http://localhost:8888/?store=sarang  ·  /admin'));
+}).listen(8888, () => console.log('http://localhost:8888/?store=fresh-basket  ·  /admin'));

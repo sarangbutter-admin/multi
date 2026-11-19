@@ -61,4 +61,4 @@ npm test      # 23 automated checks: isolation, signatures, stock, routing, expi
 npm run dev   # http://localhost:8888 with an in-memory database (super setup key: dev-setup-key-123456)
 ```
 
-Demo logins (type store address `sarang` in the first box; leave it empty for the platform admin): owner@sarang.test / demo-password-1 · platform admin admin@demo.test / demo-admin-pass · business corner.shop / demo-password-1 · coupon WELCOME10.
+Demo logins (type store address `fresh-basket` in the first box; leave it empty for the platform admin): owner@fresh-basket.test / demo-password-1 · platform admin admin@demo.test / demo-admin-pass · business corner.shop / demo-password-1 · coupon WELCOME10.
