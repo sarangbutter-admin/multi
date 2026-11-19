@@ -37,7 +37,7 @@
   // ── store picker (one shared app for every store) ──
   async function showPicker(msg) {
     setThemeCss('');
-    applyTheme({ primary: '#1F6F4A', accent: '#FFD23F', background: '#F3F7F2', surface: '#FFFFFF', text: '#13241B', radius: 14, font: 'Plus Jakarta Sans', mode: 'light' });
+    applyTheme({ primary: '#FFDA1A', accent: '#0058A3', background: '#F6F4EE', surface: '#FFFFFF', text: '#1B1B1B', radius: 14, font: 'Plus Jakarta Sans', mode: 'light' });
     document.title = 'Choose a store';
     app.innerHTML = `<main class="wrap picker"><h1>Where are you ordering from?</h1><p class="muted">${esc(msg || 'Pick a store. You can switch any time.')}</p><div class="store-list" id="stores"><span class="spinner"></span></div></main>`;
     try {

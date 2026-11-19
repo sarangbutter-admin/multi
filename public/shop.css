@@ -1,7 +1,7 @@
 /* Storefront. Every colour comes from the store's theme (set by SO.applyTheme). */
 :root {
-  --primary: #1F6F4A; --pop: #1F6F4A; --on-primary: #fff; --accent: #FFD23F; --on-accent: #13241B;
-  --bg: #F3F7F2; --surface: #fff; --ink: #13241B; --muted: #5d6e64; --line: #d6e0d9; --soft: #dbe9e0;
+  --primary: #FFDA1A; --pop: #FFDA1A; --on-primary: #1B1B1B; --accent: #0058A3; --on-accent: #fff;
+  --bg: #F6F4EE; --surface: #fff; --ink: #1B1B1B; --muted: #5d6e64; --line: #d6e0d9; --soft: #dbe9e0;
   --radius: 14px; --font: 'Plus Jakarta Sans', system-ui, sans-serif;
   --gutter: 16px; --max: 720px;
 }

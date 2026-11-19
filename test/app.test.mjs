@@ -101,7 +101,7 @@ test('theme and settings are validated', async () => {
   // switching without keep_look starts from the theme's own plain look
   await h.call('POST', '/api/admin/themes/market/use', S.o);
   const plain = (await h.call('GET', '/api/store', { tenant: S.slug })).body.theme;
-  assert.deepEqual([plain.primary, plain.font], ['#146C43', 'Outfit']);
+  assert.deepEqual([plain.primary, plain.font], ['#FFDA1A', 'Outfit']);
   assert.equal((await h.call('PUT', '/api/admin/settings', { ...S.o, body: { payments: ['paypal'] } })).body.error, 'bad_settings');
 });
 

@@ -1,4 +1,4 @@
--- Sarang Order (multi-tenant) – database setup for Supabase.
+-- TukuPack (multi-tenant) – database setup for Supabase.
 -- Run once: Supabase dashboard → SQL Editor → paste this whole file → Run.
 --
 -- SECURITY MODEL (same as sarang): only the server talks to the database, using the SECRET key.

@@ -1,4 +1,4 @@
-# Sarang Order – multi-tenant ordering platform (backend + storefront + back office)
+# TukuPack – multi-tenant ordering platform (backend + storefront + back office)
 
 Many stores on one platform. Each store has its own theme, its own payment / shipping / Turnstile keys,
 its own warehouses and stock. Built from the sarang site's approach (Netlify functions + Supabase, server holds every secret,

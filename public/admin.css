@@ -1,7 +1,7 @@
 /* Back office: one neutral look for every store, dense and quiet. Store themes only appear in the preview. */
 :root {
   --ink: #16201B; --muted: #5B6660; --line: #DADFDB; --bg: #EEF1EF; --panel: #FFFFFF; --hover: #F5F7F6;
-  --go: #1F6F4A; --go-soft: #E2EFE7; --warn: #9A5B00; --warn-soft: #FCEFD6; --bad: #A4271A; --bad-soft: #FBE5E1;
+  --go: #1B1B1B; --go-soft: #FFF3B0; --brand: #FFDA1A; --warn: #9A5B00; --warn-soft: #FCEFD6; --bad: #A4271A; --bad-soft: #FBE5E1;
   --font: 'IBM Plex Sans', system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
@@ -53,7 +53,7 @@ input[type=range] { accent-color: var(--go); width: 100%; }
 .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; }
 .check input { width: 18px; height: 18px; accent-color: var(--go); margin: 2px 0 0; flex: none; }
 .check small { display: block; color: var(--muted); }
-.btn { border: 0; background: var(--go); color: #fff; border-radius: 8px; padding: 9px 14px; font-weight: 600; }
+.btn { border: 0; background: var(--brand); color: #1B1B1B; border-radius: 8px; padding: 9px 14px; font-weight: 600; }
 .btn.sec { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
 .btn.bad { background: var(--bad-soft); color: var(--bad); }
 .btn.full { width: 100%; padding: 12px; margin-top: 16px; }

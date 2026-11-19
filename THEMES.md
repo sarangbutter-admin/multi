@@ -32,7 +32,7 @@ The whole .zip may be up to 3 MB.
   "description": "One sentence for the theme library.",
   "settings": [
     { "type": "header", "label": "Colours" },
-    { "id": "primary", "type": "color", "label": "Main colour", "default": "#146C43" },
+    { "id": "primary", "type": "color", "label": "Main colour", "default": "#FFDA1A" },
     { "id": "hero_title", "type": "text", "label": "Headline", "default": "Hello" },
     { "id": "hero_image", "type": "image", "label": "Banner picture", "default": "asset:hero.png" },
     { "id": "columns", "type": "select", "label": "Cards per row", "options": [{ "value": "3", "label": "Three" }, { "value": "4", "label": "Four" }], "default": "4" },
