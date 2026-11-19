@@ -284,37 +284,114 @@
     $$('[data-dz]').forEach(b => (b.onclick = async () => { await call('DELETE', `/api/admin/zones/${b.dataset.dz}`); deliveryView(); }));
   }
 
-  // ── look: theme editor with a live phone preview ──
+  // ── look: theme library + settings of the active theme with a live preview of the real shop ──
+  const THEME_STATUS = { private: ['Only your store', ''], review: ['Waiting for review', 'pending'], public: ['In the theme store', 'active'], rejected: ['Not accepted', 'suspended'] };
+  const b64 = buf => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+  function saveB64(name, data) {
+    const bin = atob(data), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u], { type: 'application/zip' })); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  const shopUrl = (extra = '') => `/?store=${encodeURIComponent(A.auth.slug)}&preview=1${extra}`;
+  const thumb = t => t.preview ? `<img src="${esc(t.preview)}" alt="">` : `<span>${esc(t.name.slice(0, 1))}</span>`;
+
   async function lookView() {
-    const th = { ...A.store.theme }, fonts = A.store.fonts;
-    const COLORS = [['primary', 'Main colour'], ['accent', 'Highlight'], ['background', 'Background'], ['surface', 'Cards'], ['text', 'Text']];
-    view(`<div class="head"><div><h2>Look</h2><p class="muted">How your shop looks to customers. The preview updates as you change things.</p></div></div>
-      <div class="look"><form class="panel" id="lf">
-        <h3>Colours</h3><div class="swatches">${COLORS.map(([k, l]) => `<label class="sw"><input type="color" name="${k}" value="${esc(th[k])}"><span>${l}<code>${esc(th[k])}</code></span></label>`).join('')}</div>
-        <div class="cols">${field('Font', 'font', th.font, { type: 'select', options: fonts.map(f => [f, f]) })}
-          ${field('Menu layout', 'layout', th.layout, { type: 'select', options: [['grid', 'Photo grid'], ['list', 'List']] })}
-          ${field('Start from', 'mode', th.mode, { type: 'select', options: [['light', 'Light colours'], ['dark', 'Dark colours']], attrs: 'aria-describedby="mode-hint"' })}</div><p class="muted small" id="mode-hint" style="margin:6px 0 0">Picking light or dark fills in background, cards and text colours. You can still change each one.</p>
-        ${field('Corner roundness', 'radius', th.radius, { type: 'range', attrs: 'min="0" max="32" step="1"' })}
-        ${field('Logo link', 'logo', th.logo, { type: 'url', hint: 'square image, https://', attrs: 'placeholder="https://"' })}
-        ${field('Banner link', 'banner', th.banner, { type: 'url', hint: 'wide image, optional', attrs: 'placeholder="https://"' })}
-        <div class="actions"><button class="btn">Save look</button><button type="button" class="btn sec" id="reset">Undo changes</button></div></form>
-        <div class="preview-col"><div class="preview-frame"><div class="preview" id="pv"></div></div></div></div>`);
-    const f = $('#lf'), pv = $('#pv');
-    const cur = () => { const v = read(f); v.radius = Number(v.radius); return { ...th, ...v }; };
-    const draw = () => {
-      const t = cur(); applyTheme(t, pv);
-      $$('.sw', f).forEach(sw => ($('code', sw).textContent = $('input', sw).value.toUpperCase()));
-      const card = (n, p) => `<div class="p-card"><div class="p-ph">${n[0]}</div><div class="p-txt"><b>${n}</b><span>${money(p)}</span></div></div>`;
-      pv.innerHTML = `<div class="p-top"><span class="p-logo">${t.logo ? `<img src="${esc(t.logo)}" alt="">` : esc(A.store.name[0])}</span><b>${esc(A.store.name)}</b></div>
-        ${t.banner ? `<img class="p-banner" src="${esc(t.banner)}" alt="">` : ''}
-        <div class="p-body"><div class="p-cat">Popular</div><div class="p-${t.layout}">${card('Butter cookies', 55000)}${card('Brownie box', 80000)}${card('Cheese tart', 45000)}${card('Iced latte', 28000)}</div></div>
-        <div class="p-bar"><span>2 items</span><span>${money(135000)}</span></div>`;
+    const [lib, cur] = await Promise.all([call('GET', '/api/admin/themes'), call('GET', '/api/admin/themes/' + encodeURIComponent(A.store.theme_ref || 'market'))]);
+    const active = lib.themes.find(t => t.ref === lib.current) || cur.theme, schema = cur.settings, vals = { ...cur.values };
+    const groups = []; for (const s of schema) { if (s.type === 'header' || !groups.length) groups.push({ label: s.type === 'header' ? s.label : 'Settings', items: [] }); if (s.type !== 'header') groups.at(-1).items.push(s); }
+    const input = s => {
+      const v = vals[s.id] ?? s.default, hint = s.info ? `<small class="hint-line">${esc(s.info)}</small>` : '';
+      if (s.type === 'color') return `<label class="sw"><input type="color" name="${s.id}" value="${esc(v)}"><span>${esc(s.label)}<code>${esc(String(v).toUpperCase())}</code></span></label>`;
+      if (s.type === 'checkbox') return field(s.label, s.id, v, { type: 'checkbox', hint: s.info });
+      if (s.type === 'range') return `<label class="f"><span>${esc(s.label)} <output class="hint" data-for="${s.id}">${esc(v)}</output></span><input type="range" name="${s.id}" min="${s.min}" max="${s.max}" step="${s.step}" value="${esc(v)}">${hint}</label>`;
+      if (s.type === 'select') return field(s.label, s.id, v, { type: 'select', options: s.options.map(o => [o.value, o.label]) }) + hint;
+      if (s.type === 'font') return field(s.label, s.id, v, { type: 'select', options: A.store.fonts.map(f => [f, f]) }) + hint;
+      if (s.type === 'textarea') return field(s.label, s.id, v, { type: 'textarea', rows: 2, attrs: 'maxlength="1000"' }) + hint;
+      if (s.type === 'image') { const own = String(v).startsWith('asset:'); return `<label class="f"><span>${esc(s.label)}</span><input name="${s.id}" value="${own ? '' : esc(v)}" data-asset="${own ? esc(v) : ''}" placeholder="${own ? "Using the theme's picture. Paste a link to use yours" : 'https://'}" inputmode="url" autocomplete="off">${hint}${String(s.default).startsWith('asset:') ? `<span class="img-acts"><button type="button" class="linkish small" data-reset="${s.id}">Use the theme's picture</button><button type="button" class="linkish small" data-none="${s.id}">No picture</button></span>` : ''}</label>`; }
+      return field(s.label, s.id, v, { attrs: 'maxlength="200"' }) + hint;
     };
-    const PRESETS = { light: { background: '#F3F7F2', surface: '#FFFFFF', text: '#13241B' }, dark: { background: '#10201A', surface: '#18302A', text: '#EAF4E4' } };
-    f.elements.mode.onchange = e => { for (const [k, v] of Object.entries(PRESETS[e.target.value])) f.elements[k].value = v; draw(); };
-    f.oninput = draw; draw();
+    view(`<div class="head"><div><h2>Look</h2><p class="muted">Pick a theme for your shop, then change its colours, pictures and words. The preview is your real shop.</p></div></div>
+      <section class="panel theme-now">
+        <div class="tthumb">${thumb(active)}</div>
+        <div><div class="muted small">Your theme</div><h3>${esc(active.name)} <span class="muted small">v${esc(active.version)}</span></h3>
+          <p class="muted small">${esc(active.description || '')}</p>
+          <p class="small">${active.builtin ? 'Made by the platform' : active.mine ? 'Uploaded by your store' : `Shared by ${esc(active.store || active.author || 'another store')}`}</p></div>
+      </section>
+      <div class="look">
+        <form class="panel" id="lf">${groups.map(g => `<fieldset class="tgroup"><legend>${esc(g.label)}</legend>${g.items.some(i => i.type === 'color') ? `<div class="swatches">${g.items.filter(i => i.type === 'color').map(input).join('')}</div>` : ''}${g.items.filter(i => i.type !== 'color').map(input).join('')}</fieldset>`).join('')}
+          <div class="actions sticky-actions"><button class="btn">Save look</button><button type="button" class="btn sec" id="reset">Undo changes</button></div></form>
+        <div class="preview-col">
+          <div class="seg-mini" role="group" aria-label="Preview size"><button type="button" data-size="phone" aria-pressed="true">Phone</button><button type="button" data-size="desk" aria-pressed="false">Computer</button><a class="linkish small" href="${shopUrl()}" target="_blank" rel="noopener">Open in a new tab</a></div>
+          <div class="pv-frame phone" id="pvf"><iframe id="pv" title="Preview of your shop" src="${shopUrl()}"></iframe></div>
+        </div>
+      </div>
+      <div class="head" style="margin-top:28px"><div><h2>Theme library</h2><p class="muted">Built-in themes, themes other stores share, and your own uploads.</p></div>
+        <label class="btn" tabindex="0">Upload a theme (.zip)<input type="file" id="tz" accept=".zip,application/zip" hidden></label></div>
+      <p class="muted small" style="margin-top:-6px">To make your own: download any theme below, change its files, zip the folder and upload it. Themes can change layout, colours and pictures; they can't run scripts or touch payments.</p>
+      <div class="themes">${lib.themes.map(t => {
+        const st = THEME_STATUS[t.status] || ['', ''], on = t.ref === lib.current;
+        return `<article class="tcard${on ? ' on' : ''}"><div class="tthumb">${thumb(t)}</div><div class="tbody">
+          <h3>${esc(t.name)} <span class="muted small">v${esc(t.version)}</span></h3>
+          <p class="muted small">${t.builtin ? 'Built in' : t.mine ? 'Your upload' : `By ${esc(t.store || t.author || 'another store')}`}${t.description ? ' · ' + esc(t.description) : ''}</p>
+          ${t.mine ? `<span class="pill ${st[1]}">${st[0]}</span>${t.status === 'rejected' && t.review_note ? `<p class="small err-note">${esc(t.review_note)}</p>` : ''}` : ''}
+          <div class="tact">${on ? '<span class="pill active">In use</span>' : `<button class="btn" data-use="${esc(t.ref)}">Use this theme</button><button class="btn sec" data-pre="${esc(t.ref)}">Preview</button>`}
+            <button class="btn sec" data-dl="${esc(t.ref)}">Download</button>
+            ${t.mine && ['private', 'rejected'].includes(t.status) ? `<button class="btn sec" data-share="${esc(t.ref)}">Share in the theme store</button>` : ''}
+            ${t.mine && ['review', 'public'].includes(t.status) ? `<button class="btn sec" data-unshare="${esc(t.ref)}">Stop sharing</button>` : ''}
+            ${t.mine ? `<button class="btn bad" data-del="${esc(t.ref)}">Delete</button>` : ''}</div></div></article>`;
+      }).join('')}</div>`);
+
+    // live preview: the shop in the frame listens for new values
+    const f = $('#lf'), pv = $('#pv');
+    const collect = () => { const out = {}; for (const s of schema) { if (!s.id || !f.elements[s.id]) continue; const el = f.elements[s.id]; out[s.id] = s.type === 'checkbox' ? el.checked : s.type === 'range' ? Number(el.value) : s.type === 'image' ? el.value.trim() || el.dataset.asset || '' : el.value.trim(); } return out; };
+    const push = () => pv.contentWindow && pv.contentWindow.postMessage({ type: 'so-theme', values: collect() }, location.origin);
+    let t0; f.oninput = e => {
+      $$('.sw', f).forEach(sw => ($('code', sw).textContent = $('input', sw).value.toUpperCase()));
+      $$('output[data-for]', f).forEach(o => (o.textContent = f.elements[o.dataset.for].value));
+      clearTimeout(t0); t0 = setTimeout(push, e.target.type === 'color' || e.target.type === 'range' ? 30 : 250);
+    };
+    f.onchange = push; pv.onload = push;
+    const setImg = (id, asset) => { const el = f.elements[id]; el.value = ''; el.dataset.asset = asset; el.placeholder = asset ? "Using the theme's picture. Paste a link to use yours" : 'No picture. Paste a link to add one'; push(); };
+    $$('[data-reset]', f).forEach(b => (b.onclick = () => setImg(b.dataset.reset, schema.find(x => x.id === b.dataset.reset).default)));
+    $$('[data-none]', f).forEach(b => (b.onclick = () => setImg(b.dataset.none, '')));
+    $$('input[data-asset]', f).forEach(el => el.addEventListener('input', () => { if (el.value.trim()) el.dataset.asset = ''; }));
+    $$('.seg-mini [data-size]').forEach(b => (b.onclick = () => { $$('.seg-mini [data-size]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); $('#pvf').className = 'pv-frame ' + b.dataset.size; fitPreview(); }));
     $('#reset').onclick = () => lookView();
-    bindForm(f, async v => { v.radius = Number(v.radius); A.store.theme = (await call('PUT', '/api/admin/theme', v)).theme; }, 'Look saved. Customers see it on their next visit.');
+    bindForm(f, async () => { A.store.theme = (await call('PUT', '/api/admin/theme', collect())).theme; }, 'Look saved. Customers see it on their next visit.');
+    fitPreview(); addEventListener('resize', fitPreview);
+
+    // library actions
+    const act = (sel, fn) => $$(sel).forEach(b => (b.onclick = async () => { busy(b, true, '…'); try { await fn(b); } catch (e) { toast(e.message, 'bad'); busy(b, false); } }));
+    act('[data-use]', async b => { await call('POST', `/api/admin/themes/${b.dataset.use}/use`); A.store = await call('GET', '/api/admin/store'); toast('Theme changed. Your shop uses it now.'); lookView(); });
+    act('[data-dl]', async b => { const r = await call('GET', `/api/admin/themes/${b.dataset.dl}/download`); saveB64(r.filename, r.zip); busy(b, false); });
+    act('[data-share]', async b => { await call('POST', `/api/admin/themes/${b.dataset.share}/submit`); toast('Sent for review. It appears in the theme store once approved.'); lookView(); });
+    act('[data-unshare]', async b => { await call('POST', `/api/admin/themes/${b.dataset.unshare}/withdraw`); toast('No longer shared. Stores already using it keep it.'); lookView(); });
+    act('[data-del]', async b => {
+      if (!confirm('Delete this theme? Any store using it goes back to the Market theme.')) return busy(b, false);
+      await call('DELETE', `/api/admin/themes/${b.dataset.del}`); A.store = await call('GET', '/api/admin/store'); toast('Theme deleted'); lookView();
+    });
+    $$('[data-pre]').forEach(b => (b.onclick = () => {
+      dlg.innerHTML = `<form method="dialog" class="pre-dlg"><div class="key-head"><h3>Preview</h3><button type="button" class="btn sec" data-close>Close</button></div>
+        <p class="muted small">Your products and colours in this theme. Nothing changes for customers until you choose "Use this theme".</p>
+        <div class="pv-frame phone big"><iframe title="Theme preview" src="${shopUrl('&theme=' + encodeURIComponent(b.dataset.pre))}"></iframe></div>
+        <div class="actions"><button type="button" class="btn" data-go>Use this theme</button></div></form>`;
+      $('[data-close]', dlg).onclick = () => dlg.close();
+      $('[data-go]', dlg).onclick = async e => { busy(e.target, true, '…'); try { await call('POST', `/api/admin/themes/${b.dataset.pre}/use`); dlg.close(); A.store = await call('GET', '/api/admin/store'); toast('Theme changed. Your shop uses it now.'); lookView(); } catch (err) { toast(err.message, 'bad'); busy(e.target, false); } };
+      dlg.showModal();
+    }));
+    const up = $('label:has(#tz)'); up.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#tz').click(); } };
+    $('#tz').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+      if (file.size > 3e6) return toast('That .zip is bigger than 3 MB. Make the pictures smaller.', 'bad');
+      toast('Checking your theme…');
+      try { const r = await call('POST', '/api/admin/themes', { zip: b64(await file.arrayBuffer()) }); toast(r.replaced ? `${r.theme.name} updated` : `${r.theme.name} added. Choose "Use this theme" to switch.`); lookView(); }
+      catch (err) { dialog("This theme can't be added", `<p>${esc(err.message)}</p><p class="muted small">Fix it in the theme's files, zip them again and upload.</p>`, async () => {}, { submit: 'OK' }); }
+    };
+  }
+  // the preview frame shows a 390px phone or a 1280px computer screen, scaled to fit
+  function fitPreview() {
+    const box = $('#pvf'); if (!box) return;
+    const fr = $('iframe', box), desk = box.classList.contains('desk'), w = desk ? 1280 : 390, h = desk ? 900 : 780, k = Math.min(1, (box.clientWidth || w) / w);
+    Object.assign(fr.style, { width: w + 'px', height: h + 'px', transform: `scale(${k})` }); box.style.height = h * k + 'px';
   }
 
   // ── payments & connected services (per-store keys) ──
@@ -459,9 +536,17 @@
   }
 
   // ── platform super-admin ──
-  async function superView() {
-    app.innerHTML = `<header class="top"><div class="row"><h1>Platform admin</h1><button class="out" id="out">Log out</button></div></header><main><div id="view"><span class="spinner"></span></div></main>`;
+  async function superView(tab = A.superTab || 'stores') {
+    A.superTab = tab;
+    app.innerHTML = `<header class="top"><div class="row"><h1>Platform admin</h1><button class="out" id="out">Log out</button></div>
+      <nav class="tabs" aria-label="Sections"><button data-st="stores">Stores</button><button data-st="themes">Theme store<span class="count" id="tq" hidden></span></button></nav></header><main><div id="view"><span class="spinner"></span></div></main>`;
     $('#out').onclick = () => logout();
+    $$('[data-st]').forEach(b => { if (b.dataset.st === tab) b.setAttribute('aria-current', 'page'); b.onclick = () => superView(b.dataset.st); });
+    const themes = await call('GET', '/api/super/themes'), waiting = themes.themes.filter(t => t.status === 'review').length;
+    if (waiting) { $('#tq').hidden = false; $('#tq').textContent = waiting; }
+    return tab === 'themes' ? superThemes(themes) : superStores();
+  }
+  async function superStores() {
     const { tenants } = await call('GET', '/api/super/tenants');
     const pend = tenants.filter(t => t.status === 'pending').length;
     view(`<div class="head"><div><h2>Stores</h2><p class="muted">${pend ? `${pend} waiting for approval` : 'No stores waiting'}.</p></div></div>
@@ -471,10 +556,28 @@
           <button class="btn sec" data-dom="${t.id}">Custom domain</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No stores yet.</div>'}`);
     $$('[data-a]').forEach(b => (b.onclick = async () => {
       if (b.dataset.a === 'suspend' && !confirm('Suspend this store? Customers can no longer order.')) return;
-      busy(b, true, '…'); try { await call('POST', `/api/super/tenants/${b.dataset.id}/${b.dataset.a}`); superView(); } catch (e) { toast(e.message, 'bad'); busy(b, false); }
+      busy(b, true, '…'); try { await call('POST', `/api/super/tenants/${b.dataset.id}/${b.dataset.a}`); superView('stores'); } catch (e) { toast(e.message, 'bad'); busy(b, false); }
     }));
     $$('[data-dom]').forEach(b => (b.onclick = () => dialog('Add a custom domain', `${field('Domain', 'host', '', { attrs: 'required placeholder="order.example.com"', hint: 'point its DNS to this platform first' })}`,
       async v => { await call('POST', `/api/super/tenants/${b.dataset.dom}/domain`, v); toast('Domain added'); })));
+  }
+  function superThemes({ themes, preview_store }) {
+    const order = { review: 0, public: 1, rejected: 2 };
+    view(`<div class="head"><div><h2>Theme store</h2><p class="muted">Themes stores want to share. Approved themes show up in every store's theme library. Themes are checked for scripts and outside links when they're uploaded; here you judge whether they look right.</p></div></div>
+      ${themes.length ? `<div class="themes">${themes.sort((a, b) => order[a.status] - order[b.status]).map(t => `<article class="tcard"><div class="tthumb">${thumb(t)}</div><div class="tbody">
+        <h3>${esc(t.name)} <span class="muted small">v${esc(t.version)}</span></h3>
+        <p class="muted small">From ${esc(t.store || 'a deleted store')}${t.author ? ` · made by ${esc(t.author)}` : ''}${t.description ? ' · ' + esc(t.description) : ''}</p>
+        <span class="pill ${(THEME_STATUS[t.status] || [])[1]}">${{ review: 'Waiting for review', public: 'In the theme store', rejected: 'Not accepted' }[t.status]}</span>
+        ${t.review_note ? `<p class="small err-note">${esc(t.review_note)}</p>` : ''}
+        <div class="tact">${preview_store ? `<a class="btn sec" href="/?store=${encodeURIComponent(preview_store)}&theme=${encodeURIComponent(t.ref)}" target="_blank" rel="noopener">Preview</a>` : ''}
+          <button class="btn sec" data-dl="${esc(t.ref)}">Download</button>
+          ${t.status !== 'public' ? `<button class="btn" data-ok="${esc(t.ref)}">Approve</button>` : ''}
+          ${t.status !== 'rejected' ? `<button class="btn bad" data-no="${esc(t.ref)}">${t.status === 'public' ? 'Remove from store' : 'Turn down'}</button>` : ''}</div></div></article>`).join('')}</div>`
+        : '<div class="empty">No themes have been shared yet.</div>'}`);
+    $$('[data-dl]').forEach(b => (b.onclick = async () => { try { const r = await call('GET', `/api/super/themes/${b.dataset.dl}/download`); saveB64(r.filename, r.zip); } catch (e) { toast(e.message, 'bad'); } }));
+    $$('[data-ok]').forEach(b => (b.onclick = async () => { busy(b, true, '…'); try { await call('POST', `/api/super/themes/${b.dataset.ok}/approve`); toast('Approved. It is in the theme store now.'); superView('themes'); } catch (e) { toast(e.message, 'bad'); busy(b, false); } }));
+    $$('[data-no]').forEach(b => (b.onclick = () => dialog('Turn down this theme', field('Note for the store', 'note', '', { type: 'textarea', hint: 'what to fix', attrs: 'maxlength="300" required' }),
+      async v => { await call('POST', `/api/super/themes/${b.dataset.no}/reject`, v); toast('The store can see your note'); superView('themes'); }, { submit: 'Send' })));
   }
 
   const VIEWS = { orders: ordersView, products: productsView, stock: stockView, feedback: feedbackView, discounts: discountsView, customers: customersView, warehouses: warehousesView, delivery: deliveryView, look: lookView, payments: paymentsView, settings: settingsView, staff: staffView };

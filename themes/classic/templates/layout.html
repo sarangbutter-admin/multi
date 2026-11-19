@@ -1,0 +1,13 @@
+<header class="top"><div class="wrap bar">
+  <span class="logo">{{#store.logo}}<img src="{{store.logo}}" alt="">{{/store.logo}}{{^store.logo}}{{store.initial}}{{/store.logo}}</span>
+  <h1>{{store.name}}</h1>
+  <button class="icon-btn" data-action="orders">My orders</button>
+  {{#can_switch}}<button class="icon-btn" data-action="stores" aria-label="Switch store">Stores</button>{{/can_switch}}
+</div>{{#settings.banner}}<img class="banner" src="{{settings.banner}}" alt="">{{/settings.banner}}</header>
+<main class="wrap menu">
+  {{#store.about}}<p class="about">{{store.about}}</p>{{/store.about}}
+  {{#has_categories}}<nav class="cats" aria-label="Categories">{{#categories}}<button class="chip" data-action="category" data-category="{{name}}">{{name}}</button>{{/categories}}</nav>{{/has_categories}}
+  {{#sections}}<section data-section="{{name}}">{{#has_categories}}<h2 class="cat-title">{{title}}</h2>{{/has_categories}}
+    <div class="{{settings.layout}}">{{#products}}{{> card}}{{/products}}</div></section>{{/sections}}
+  {{^products}}<div class="empty"><p class="muted">The menu is being prepared. Check back soon.</p></div>{{/products}}
+</main>

@@ -1,0 +1,103 @@
+<div class="mk">
+  {{#settings.announcement}}<div class="mk-ann"><p>{{settings.announcement}}</p></div>{{/settings.announcement}}
+
+  <header class="mk-head">
+    <div class="mk-wrap mk-head-row">
+      <button class="mk-brand" data-action="home">
+        {{#store.logo}}<img src="{{store.logo}}" alt="">{{/store.logo}}{{^store.logo}}<span class="mk-mark" aria-hidden="true">{{store.initial}}</span>{{/store.logo}}
+        <span class="mk-brand-name">{{store.name}}</span>
+      </button>
+      <label class="mk-search">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="search" data-action="search" placeholder="Search {{store.name}}" aria-label="Search products" autocomplete="off" enterkeyhint="search">
+      </label>
+      <nav class="mk-tools" aria-label="Your account">
+        {{#can_switch}}<button class="mk-tool" data-action="stores"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Stores</span></button>{{/can_switch}}
+        <button class="mk-tool" data-action="orders"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>My orders</span></button>
+        <button class="mk-cart" data-action="cart" aria-label="Open your order">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8V7a3 3 0 0 1 6 0v1" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <span class="mk-cart-n" data-bind="cart-count">{{cart.count}}</span><span class="mk-cart-sum" data-bind="cart-total">{{cart.total}}</span>
+        </button>
+      </nav>
+    </div>
+    {{#has_categories}}
+    <nav class="mk-wrap mk-cats" aria-label="Categories">
+      <button class="mk-cat" data-action="all">All</button>
+      {{#categories}}<button class="mk-cat" data-action="category" data-category="{{name}}">{{name}}</button>{{/categories}}
+    </nav>
+    {{/has_categories}}
+  </header>
+
+  <main class="mk-wrap mk-main">
+    <div data-home>
+      <section class="mk-hero{{#settings.show_tiles}}{{#has_categories}} has-tiles{{/has_categories}}{{/settings.show_tiles}}">
+        <div class="mk-hero-main">
+          <div class="mk-hero-copy">
+            <h1>{{#settings.hero_title}}{{settings.hero_title}}{{/settings.hero_title}}{{^settings.hero_title}}{{store.name}}{{/settings.hero_title}}</h1>
+            {{#settings.hero_text}}<p>{{settings.hero_text}}</p>{{/settings.hero_text}}{{^settings.hero_text}}{{#store.about}}<p>{{store.about}}</p>{{/store.about}}{{/settings.hero_text}}
+            {{#settings.hero_button}}<button class="mk-btn" data-action="scroll" data-target="mk-shelves">{{settings.hero_button}}</button>{{/settings.hero_button}}
+          </div>
+          {{#settings.hero_image}}<img class="mk-hero-img" src="{{settings.hero_image}}" alt="">{{/settings.hero_image}}
+        </div>
+        {{#settings.show_tiles}}{{#has_categories}}
+        <aside class="mk-tiles" aria-labelledby="mk-tiles-h">
+          <h2 id="mk-tiles-h">Shop by category</h2>
+          <div class="mk-tile-grid">
+            {{#categories}}<button class="mk-tile" data-action="category" data-category="{{name}}">
+              {{#image}}<img src="{{image}}" alt="" loading="lazy">{{/image}}{{^image}}<span class="mk-tile-i" aria-hidden="true">{{initial}}</span>{{/image}}
+              <span>{{name}}</span><small>{{count_label}}</small>
+            </button>{{/categories}}
+          </div>
+        </aside>
+        {{/has_categories}}{{/settings.show_tiles}}
+      </section>
+
+      <ul class="mk-perks">
+        {{#settings.perk_1}}<li><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>{{settings.perk_1}}</li>{{/settings.perk_1}}
+        {{#settings.perk_2}}<li><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>{{settings.perk_2}}</li>{{/settings.perk_2}}
+        {{#settings.perk_3}}<li><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>{{settings.perk_3}}</li>{{/settings.perk_3}}
+      </ul>
+
+      <div id="mk-shelves">
+        {{#sections}}
+        <section class="mk-sec" data-section="{{name}}">
+          <div class="mk-sec-head">
+            <h2>{{title}}</h2>
+            {{#name}}<button class="mk-link" data-action="category" data-category="{{name}}">See all</button>{{/name}}
+          </div>
+          <div class="mk-rail">{{#products}}{{> card}}{{/products}}</div>
+        </section>
+        {{/sections}}
+        {{^products}}<p class="mk-empty">The shelves are being stocked. Check back soon.</p>{{/products}}
+      </div>
+
+      {{#settings.promo_title}}
+      <section class="mk-promo">
+        <div><h2>{{settings.promo_title}}</h2>{{#settings.promo_text}}<p>{{settings.promo_text}}</p>{{/settings.promo_text}}</div>
+        {{#store.whatsapp}}<a class="mk-btn mk-btn-dark" href="https://wa.me/{{store.whatsapp}}" target="_blank">Message us on WhatsApp</a>{{/store.whatsapp}}
+      </section>
+      {{/settings.promo_title}}
+    </div>
+
+    <section class="mk-results" data-results hidden>
+      <div class="mk-sec-head"><h2 data-bind="results-title"></h2><button class="mk-link" data-action="all">Show everything</button></div>
+      <div class="mk-grid" data-slot="results"></div>
+    </section>
+  </main>
+
+  <footer class="mk-foot">
+    <div class="mk-wrap mk-foot-row">
+      <div class="mk-foot-about">
+        <b>{{store.name}}</b>
+        {{#store.about}}<p>{{store.about}}</p>{{/store.about}}
+      </div>
+      <div class="mk-foot-links">
+        <button data-action="orders">My orders</button>
+        <button data-action="cart">Your order</button>
+        {{#store.whatsapp}}<a href="https://wa.me/{{store.whatsapp}}" target="_blank">WhatsApp</a>{{/store.whatsapp}}
+        {{#can_switch}}<button data-action="stores">Other stores</button>{{/can_switch}}
+      </div>
+    </div>
+    <p class="mk-wrap mk-copy">© {{year}} {{store.name}}</p>
+  </footer>
+</div>

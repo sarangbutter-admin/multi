@@ -67,7 +67,7 @@ test('sign-up: store stays hidden until the super-admin approves it', async () =
   const t = await h.db.one('tenants', { slug: 'cake' });
   await h.call('POST', `/api/super/tenants/${t.id}/approve`, { token: sup.body.token });
   const st = await h.call('GET', '/api/store', { tenant: 'cake' });
-  assert.equal(st.status, 200); assert.equal(st.body.theme.primary, '#112233'); assert.equal(st.body.theme.font, 'Plus Jakarta Sans');
+  assert.equal(st.status, 200); assert.equal(st.body.theme.primary, '#112233'); assert.equal(st.body.theme.font, 'Outfit'); assert.equal(st.body.theme_ref, 'market');
   assert.deepEqual((await h.call('GET', '/api/directory')).body.stores.map(s => s.slug), ['cake']);
   // a store owner is not a super-admin
   assert.equal((await h.call('GET', '/api/super/tenants', { token: su.body.token })).status, 401);
@@ -91,8 +91,13 @@ test('theme and settings are validated', async () => {
   assert.equal((await h.call('PUT', '/api/admin/theme', { ...S.o, body: { primary: 'red' } })).body.error, 'bad_theme');
   assert.equal((await h.call('PUT', '/api/admin/theme', { ...S.o, body: { font: 'Comic Sans' } })).body.error, 'bad_theme');
   assert.equal((await h.call('PUT', '/api/admin/theme', { ...S.o, body: { logo: 'javascript:alert(1)' } })).body.error, 'bad_theme');
-  const ok = await h.call('PUT', '/api/admin/theme', { ...S.o, body: { primary: '#0A7B5C', font: 'Poppins', layout: 'list', mode: 'dark', radius: 8 } });
-  assert.deepEqual([ok.body.theme.primary, ok.body.theme.font, ok.body.theme.layout], ['#0A7B5C', 'Poppins', 'list']);
+  // "layout" belongs to the Classic theme: ignored while Market is active, kept once Classic is in use
+  let ok = await h.call('PUT', '/api/admin/theme', { ...S.o, body: { primary: '#0A7B5C', font: 'Poppins', layout: 'list', mode: 'dark', radius: 8 } });
+  assert.deepEqual([ok.body.theme.primary, ok.body.theme.font, ok.body.theme.layout], ['#0A7B5C', 'Poppins', undefined]);
+  assert.equal((await h.call('POST', '/api/admin/themes/classic/use', S.o)).status, 200);
+  assert.equal((await h.call('PUT', '/api/admin/theme', { ...S.o, body: { layout: 'tiles' } })).body.error, 'bad_theme');
+  ok = await h.call('PUT', '/api/admin/theme', { ...S.o, body: { layout: 'list' } });
+  assert.deepEqual([ok.body.theme.primary, ok.body.theme.layout], ['#0A7B5C', 'list']);
   assert.equal((await h.call('PUT', '/api/admin/settings', { ...S.o, body: { payments: ['paypal'] } })).body.error, 'bad_settings');
 });
 
@@ -388,4 +393,74 @@ test('complaints: delivered orders only, photos required, one per order, closes 
   h.tick(49 * 3600000);
   assert.equal((await complain({}, late.no)).body.error, 'closed');
   assert.equal((await h.call('GET', `/api/order?no=${late.no}&phone=081234567890`, { tenant: 'butter' })).body.order.can_complain, false);
+});
+
+test('themes: upload, preview, share to the theme store, approve, use, delete', async () => {
+  const { writeZip } = await import('../lib/theme.mjs');
+  const h = setup(); const A = await liveStore(h, 'alpha'); const B = await liveStore(h, 'bravo');
+  const sup = (await h.call('POST', '/api/login', { body: { email: 'me@x.test', password: 'super-password-1' } })).body.token;
+  const zip = (ver, title = 'Hi') => writeZip({
+    'my-theme/theme.json': JSON.stringify({ name: 'Sunny Shop', version: ver, author: 'Alpha', settings: [{ id: 'title', type: 'text', label: 'Title', default: title }] }),
+    'my-theme/theme.css': '.x{color:red}',
+    'my-theme/templates/layout.html': '<h1>{{settings.title}}</h1>{{#products}}{{> card}}{{/products}}',
+    'my-theme/templates/card.html': '<div data-card="{{id}}">{{name}}</div>' }).toString('base64');
+
+  // the gallery starts with the built-ins; Market is the default
+  let g = await h.call('GET', '/api/admin/themes', A.o);
+  assert.equal(g.body.current, 'market'); assert.deepEqual(g.body.themes.map(t => t.ref).sort(), ['classic', 'market']);
+  // bad uploads are refused with a reason
+  assert.equal((await h.call('POST', '/api/admin/themes', { ...A.o, body: { zip: 'not base64!' } })).body.error, 'bad_theme');
+  const evil = writeZip({ 'theme.json': '{"name":"Evil"}', 'templates/layout.html': '<script>steal()</script>', 'templates/card.html': '<div data-card="{{id}}"></div>' }).toString('base64');
+  assert.match((await h.call('POST', '/api/admin/themes', { ...A.o, body: { zip: evil } })).body.message, /can't contain/);
+  // upload → private to this store
+  const up = await h.call('POST', '/api/admin/themes', { ...A.o, body: { zip: zip('1.0.0') } });
+  assert.equal(up.status, 201, JSON.stringify(up.body)); const id = up.body.theme.ref;
+  assert.equal(up.body.theme.status, 'private');
+  // the other store can't see or use a private theme
+  assert.ok(!(await h.call('GET', '/api/admin/themes', B.o)).body.themes.some(t => t.ref === id));
+  assert.equal((await h.call('POST', `/api/admin/themes/${id}/use`, B.o)).status, 404);
+  assert.equal((await h.call('POST', `/api/admin/themes/${id}/submit`, B.o)).status, 404);
+  // use it: the storefront gets its package and the theme's settings
+  assert.equal((await h.call('POST', `/api/admin/themes/${id}/use`, A.o)).status, 200);
+  const st = await h.call('GET', '/api/store', { tenant: 'alpha' });
+  assert.equal(st.body.theme_ref, id); assert.equal(st.body.theme.title, 'Hi');
+  const r = await h.app.handle(new Request('https://shop.test' + st.body.theme_pkg));
+  assert.match(r.headers.get('cache-control'), /immutable/);
+  const pk = await r.json(); assert.equal(pk.templates.layout.slice(0, 4), '<h1>'); assert.ok(pk.settings.some(s => s.id === 'title') && pk.settings.some(s => s.id === 'primary'));
+  assert.equal((await h.call('PUT', '/api/admin/theme', { ...A.o, body: { title: 'Welcome' } })).body.theme.title, 'Welcome');
+  // share → waiting for review → not in anyone else's gallery yet
+  assert.equal((await h.call('POST', `/api/admin/themes/${id}/submit`, A.o)).status, 200);
+  assert.ok(!(await h.call('GET', '/api/admin/themes', B.o)).body.themes.some(t => t.ref === id));
+  assert.equal((await h.call('GET', '/api/super/themes', {})).status, 401);
+  const q = await h.call('GET', '/api/super/themes', { token: sup });
+  assert.equal(q.body.themes[0].status, 'review'); assert.equal(q.body.themes[0].store, 'Butter alpha');
+  // rejected with a note, then approved
+  await h.call('POST', `/api/super/themes/${id}/reject`, { token: sup, body: { note: 'Add a preview picture' } });
+  assert.equal((await h.call('GET', '/api/admin/themes', A.o)).body.themes.find(t => t.ref === id).review_note, 'Add a preview picture');
+  await h.call('POST', `/api/admin/themes/${id}/submit`, A.o);
+  assert.equal((await h.call('POST', `/api/super/themes/${id}/approve`, { token: sup })).status, 200);
+  // public: the other store sees it, uses it, can download it
+  g = await h.call('GET', '/api/admin/themes', B.o);
+  const card = g.body.themes.find(t => t.ref === id); assert.ok(card && !card.mine && card.store === 'Butter alpha');
+  assert.equal((await h.call('POST', `/api/admin/themes/${id}/use`, B.o)).status, 200);
+  const dl = await h.call('GET', `/api/admin/themes/${id}/download`, B.o);
+  assert.equal(dl.body.filename, 'sunny-shop-1.0.0.zip'); assert.ok(Buffer.from(dl.body.zip, 'base64').length > 100);
+  // a new version goes back to review but keeps working for stores that use it
+  const v2 = await h.call('POST', '/api/admin/themes', { ...A.o, body: { zip: zip('1.1.0', 'Hello') } });
+  assert.equal(v2.status, 200); assert.equal(v2.body.theme.ref, id); assert.equal(v2.body.theme.status, 'review');
+  assert.equal((await h.call('GET', '/api/store', { tenant: 'bravo' })).body.theme_ref, id);
+  // only the owner store can delete it; everyone using it goes back to Market
+  assert.equal((await h.call('DELETE', `/api/admin/themes/${id}`, B.o)).status, 404);
+  assert.equal((await h.call('DELETE', `/api/admin/themes/${id}`, A.o)).status, 200);
+  assert.equal((await h.call('GET', '/api/store', { tenant: 'bravo' })).body.theme_ref, 'market');
+  assert.equal((await h.call('GET', `/api/themes/${id}/package`, {})).status, 404);
+});
+
+test('themes: a store waiting for approval can preview its own shop', async () => {
+  const h = setup();
+  const su = await h.call('POST', '/api/signup', { body: { slug: 'newbie', store_name: 'Newbie', email: 'n@n.test', password: 'password-123' } });
+  assert.equal((await h.call('GET', '/api/store', { tenant: 'newbie' })).status, 404);
+  assert.equal((await h.call('GET', '/api/store', { tenant: 'newbie', token: su.body.token })).status, 200);
+  assert.equal((await h.call('GET', '/api/menu', { tenant: 'newbie', token: su.body.token })).status, 200);
+  assert.equal((await h.call('POST', '/api/quote', { tenant: 'newbie', token: su.body.token, body: { items: [] } })).status, 404, 'no ordering before approval');
 });

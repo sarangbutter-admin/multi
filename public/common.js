@@ -50,7 +50,8 @@ const SO = (() => {
   }
   function applyTheme(th, root = document.documentElement) {
     const bg = th.background, surface = th.surface, ink = th.text;
-    const vars = { '--pop': readable(th), '--primary': th.primary, '--on-primary': onColor(th.primary), '--accent': th.accent, '--on-accent': onColor(th.accent), '--bg': bg, '--surface': surface,
+    const pop = readable(th);
+    const vars = { '--pop': pop, '--on-pop': onColor(pop), '--primary': th.primary, '--on-primary': onColor(th.primary), '--accent': th.accent, '--on-accent': onColor(th.accent), '--bg': bg, '--surface': surface,
       '--ink': ink, '--muted': mix(ink, bg, 0.42), '--line': mix(ink, bg, 0.84), '--soft': mix(th.primary, bg, 0.88), '--radius': th.radius + 'px', '--font': `'${th.font}', system-ui, sans-serif` };
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     loadFont(th.font);

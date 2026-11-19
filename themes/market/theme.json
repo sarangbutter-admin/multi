@@ -1,0 +1,36 @@
+{
+  "name": "Market",
+  "version": "1.0.0",
+  "author": "Sarang Order",
+  "description": "A busy neighbourhood market: search up top, category tiles, shelves by category, quick add and quick view on every card.",
+  "settings": [
+    { "type": "header", "label": "Colours and type" },
+    { "id": "primary", "type": "color", "label": "Main colour", "default": "#146C43" },
+    { "id": "accent", "type": "color", "label": "Highlight", "default": "#F5B331" },
+    { "id": "background", "type": "color", "label": "Background", "default": "#EFF3EE" },
+    { "id": "surface", "type": "color", "label": "Cards", "default": "#FFFFFF" },
+    { "id": "text", "type": "color", "label": "Text", "default": "#15211A" },
+    { "id": "font", "type": "font", "label": "Font", "default": "Outfit" },
+    { "id": "radius", "type": "range", "label": "Corner roundness", "min": 0, "max": 28, "step": 1, "default": 16 },
+    { "id": "logo", "type": "image", "label": "Logo", "info": "Square image link (https://)", "default": "" },
+
+    { "type": "header", "label": "Top bar" },
+    { "id": "announcement", "type": "text", "label": "Message across the top", "info": "Leave empty to hide it", "default": "Fresh every day. Pick up or get it delivered." },
+
+    { "type": "header", "label": "Big banner" },
+    { "id": "hero_title", "type": "text", "label": "Headline", "info": "Leave empty to show your store name", "default": "Good food, close to home." },
+    { "id": "hero_text", "type": "textarea", "label": "Text under the headline", "info": "Leave empty to show your store description", "default": "" },
+    { "id": "hero_button", "type": "text", "label": "Button", "default": "Start shopping" },
+    { "id": "hero_image", "type": "image", "label": "Banner picture", "info": "A cut-out photo on a plain background works best", "default": "asset:hero.svg" },
+    { "id": "show_tiles", "type": "checkbox", "label": "Show category tiles next to the banner", "default": true },
+
+    { "type": "header", "label": "Why order here" },
+    { "id": "perk_1", "type": "text", "label": "Point 1", "default": "Packed fresh for every order" },
+    { "id": "perk_2", "type": "text", "label": "Point 2", "default": "Pick up or delivery" },
+    { "id": "perk_3", "type": "text", "label": "Point 3", "default": "Pay by QRIS, e-wallet or transfer" },
+
+    { "type": "header", "label": "Band near the bottom" },
+    { "id": "promo_title", "type": "text", "label": "Headline", "info": "Leave empty to hide the band", "default": "Ordering for an office or a cafe?" },
+    { "id": "promo_text", "type": "textarea", "label": "Text", "default": "Ask us about a business account for better prices on regular orders." }
+  ]
+}

@@ -1,22 +1,34 @@
-// Customer storefront: store picker → menu → ticket (cart + checkout) → order status.
+// Customer storefront: store picker → the store's theme (layout + product cards) → ticket (cart + checkout) → order status.
+// Themes only provide HTML templates and CSS (see THEMES.md). Everything that acts is here, wired through data-action attributes.
 (() => {
   const { api, esc, money, $, $$, toast, store: ls, applyTheme } = SO;
-  const S = { slug: null, hostMode: false, info: null, menu: [], cart: {}, cat: null, quote: null, mode: 'delivery', loc: null, tsToken: null, tsWidget: null, coupon: '', reviews: null };
+  const S = { slug: null, hostMode: false, info: null, menu: [], cart: {}, quote: null, mode: 'delivery', loc: null, tsToken: null, tsWidget: null, coupon: '', reviews: null,
+              pkg: null, values: {}, ctx: null, filter: { q: '', cat: null }, preview: false, themeParam: null };
   const app = $('#app'), sheetRoot = $('#sheet-root');
-  const T = () => ({ ...(S.hostMode ? {} : { tenant: S.slug }), token: (ls.get('b2b.' + S.slug) || {}).token });
+  const adminToken = () => { const a = ls.get('admin'); return S.preview && a && a.slug === S.slug ? a.token : null; };
+  const T = () => ({ ...(S.hostMode ? {} : { tenant: S.slug }), token: adminToken() || (ls.get('b2b.' + S.slug) || {}).token });
   const PM_LABEL = { midtrans: ['Pay online', 'QRIS, e-wallet, virtual account or card'], doku: ['Pay online', 'QRIS, e-wallet, virtual account or card'], manual: ['Bank transfer', 'Transfer, then the store confirms your payment'] };
   const STEPS = [['pending_payment', 'Order placed'], ['paid', 'Payment received'], ['preparing', 'Being prepared'], ['shipped', 'On the way'], ['delivered', 'Delivered']];
+  const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
   // ── boot ──
   async function boot() {
     const q = new URLSearchParams(location.search);
     const m = location.pathname.match(/^\/order\/([A-Z0-9]+)/i);
-    S.slug = (q.get('store') || ls.get('store') || '').toLowerCase() || null;
+    S.preview = q.get('preview') === '1';
+    S.themeParam = /^[\w-]{1,40}$/.test(q.get('theme') || '') ? q.get('theme') : null;
+    S.slug = (q.get('store') || (S.preview ? '' : ls.get('store')) || '').toLowerCase() || null;
+    bindTheme();
+    if (S.preview) window.addEventListener('message', e => {
+      if (e.origin !== location.origin || !e.data || e.data.type !== 'so-theme' || !S.pkg) return;
+      S.values = { ...S.values, ...e.data.values }; applyTheme(S.values);
+      const y = scrollY; renderShop(); scrollTo(0, y);
+    });
     if (!S.slug) {
       try { S.info = await api('GET', '/api/store'); S.hostMode = true; S.slug = S.info.store.slug; }
       catch { return showPicker(); }
     }
-    try { await enterStore(S.slug, !S.hostMode); }
+    try { await enterStore(S.slug, !S.hostMode && !S.preview); }
     catch (e) { if (e.code === 'no_store') { ls.set('store', null); return showPicker("That store isn't available right now."); } return fatal(e); }
     if (m) { const mine = (ls.get('orders') || []).find(o => o.no === m[1].toUpperCase()); showOrder(m[1].toUpperCase(), mine?.phone); }
   }
@@ -24,6 +36,7 @@
 
   // ── store picker (one shared app for every store) ──
   async function showPicker(msg) {
+    setThemeCss('');
     applyTheme({ primary: '#1F6F4A', accent: '#FFD23F', background: '#F3F7F2', surface: '#FFFFFF', text: '#13241B', radius: 14, font: 'Plus Jakarta Sans', mode: 'light' });
     document.title = 'Choose a store';
     app.innerHTML = `<main class="wrap picker"><h1>Where are you ordering from?</h1><p class="muted">${esc(msg || 'Pick a store. You can switch any time.')}</p><div class="store-list" id="stores"><span class="spinner"></span></div></main>`;
@@ -36,21 +49,33 @@
       $$('.store-tile').forEach(b => (b.onclick = () => enterStore(b.dataset.slug, true).catch(fatal)));
     } catch (e) { $('#stores').innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
   }
+  function switchStore() { ls.set('store', null); history.replaceState(null, '', '/'); S.pkg = null; showPicker(); }
+
+  // ── theme package ──
+  const pkgCache = {};
+  async function loadPkg(path) { return (pkgCache[path] ||= api('GET', path).catch(e => { delete pkgCache[path]; throw e; })); }
+  function setThemeCss(css) { let el = $('#theme-css'); if (!el) { el = document.createElement('style'); el.id = 'theme-css'; document.head.append(el); } el.textContent = css; }
+  const defaultsOf = pkg => Object.fromEntries(pkg.settings.filter(x => x.id).map(x => [x.id, x.default]));
+  // theme images can point at the theme's own pictures ("asset:hero.png")
+  const imageUrl = u => (typeof u === 'string' && u.startsWith('asset:') ? S.pkg.assets[u.slice(6)] || '' : u || '');
 
   async function enterStore(slug, remember) {
     S.slug = slug;
     const [info, menu] = await Promise.all([S.hostMode && S.info ? S.info : api('GET', '/api/store', undefined, T()), api('GET', '/api/menu', undefined, T())]);
-    S.info = info; S.menu = menu.products; S.quote = null; S.reviews = null; S.coupon = '';
+    S.info = info; S.menu = menu.products; S.quote = null; S.reviews = null; S.coupon = ''; S.filter = { q: '', cat: null };
+    try { S.pkg = await loadPkg(S.themeParam ? `/api/themes/${S.themeParam}/package` : info.theme_pkg); }
+    catch { S.pkg = await loadPkg('/api/themes/market/package'); }  // a missing theme never takes the shop down
+    S.values = { ...defaultsOf(S.pkg), ...(S.preview && new URLSearchParams(location.search).get('defaults') === '1' ? {} : S.themeParam ? info.theme_saved : info.theme) };
     if (remember) ls.set('store', slug);
     S.cart = ls.get('cart.' + slug) || {};
     pruneCart();
     S.mode = 'delivery';
-    applyTheme(info.theme);
+    applyTheme(S.values); setThemeCss(S.pkg.css); document.body.dataset.theme = S.pkg.ref;
     document.title = info.store.name;
     renderShop();
   }
 
-  // ── menu ──
+  // ── menu data ──
   const variants = () => S.menu.flatMap(p => p.variants.map(v => ({ ...v, product: p })));
   const vById = id => variants().find(v => v.id === id);
   function pruneCart() { for (const id of Object.keys(S.cart)) { const v = vById(id); if (!v || v.available <= 0) delete S.cart[id]; else S.cart[id] = Math.min(S.cart[id], v.available); } saveCart(); }
@@ -58,70 +83,180 @@
   const cartCount = () => Object.values(S.cart).reduce((a, b) => a + b, 0);
   const cartTotal = () => Object.entries(S.cart).reduce((s, [id, q]) => s + (vById(id)?.price || 0) * q, 0);
   const inCart = p => p.variants.reduce((s, v) => s + (S.cart[v.id] || 0), 0);
-  const priceOf = p => { const ps = p.variants.map(v => v.price); const lo = Math.min(...ps); return ps.some(x => x !== lo) ? 'from ' + money(lo) : money(lo); };
+  const productById = id => S.menu.find(p => p.id === id);
 
+  // what a theme template can use (documented in THEMES.md)
+  function cardCtx(p) {
+    const prices = p.variants.map(v => v.price), lo = Math.min(...prices), left = p.variants.reduce((s, v) => s + Math.max(v.available, 0), 0), sold = left <= 0;
+    return { id: p.id, name: p.name, description: p.description || '', image: p.image || '', initial: (p.name || '?').slice(0, 1).toUpperCase(), category: p.category || '',
+      price: money(lo), from: prices.some(x => x !== lo), sold_out: sold, low: !sold && left <= 5, left, in_cart: inCart(p),
+      rating: p.rating ? { avg: p.rating.avg.toFixed(1), count: p.rating.count, stars: '★'.repeat(Math.round(p.rating.avg)) + '☆'.repeat(5 - Math.round(p.rating.avg)) } : null,
+      badge: sold ? 'Sold out' : left <= 5 ? `Only ${left} left` : null, variants: p.variants.map(v => ({ id: v.id, name: v.name, price: money(v.price), sold_out: v.available <= 0 })) };
+  }
+  function rootCtx() {
+    const settings = {};
+    for (const s of S.pkg.settings) if (s.id) settings[s.id] = s.type === 'image' ? imageUrl(S.values[s.id]) : S.values[s.id];
+    for (const [k, v] of Object.entries(S.values)) if (!(k in settings)) settings[k] = v;
+    const cats = [...new Set(S.menu.map(p => p.category || ''))], named = cats.filter(Boolean);
+    const products = S.menu.map(cardCtx);
+    return {
+      store: { ...S.info.store, initial: S.info.store.name.slice(0, 1).toUpperCase(), logo: settings.logo || '' }, settings,
+      categories: named.map(name => { const ps = S.menu.filter(p => p.category === name); return { name, count: ps.length, count_label: `${ps.length} item${ps.length === 1 ? '' : 's'}`, image: (ps.find(p => p.image) || {}).image || '', initial: name.slice(0, 1).toUpperCase() }; }),
+      has_categories: named.length > 1,
+      sections: cats.map(name => { const ps = products.filter(p => p.category === name); return { name, title: name || (named.length ? 'More' : 'All products'), count: ps.length, products: ps }; }),
+      products, product_count: products.length, cart: { count: cartCount(), total: money(cartTotal()) }, can_switch: !S.hostMode && !S.preview, year: new Date().getFullYear()
+    };
+  }
+
+  // ── the shop page, drawn by the theme ──
   function renderShop() {
-    const st = S.info.store, th = S.info.theme;
-    const cats = [...new Set(S.menu.map(p => p.category || ''))];
-    const named = cats.filter(Boolean);
-    app.innerHTML = `
-      <header class="top"><div class="wrap bar">
-        <span class="logo">${th.logo ? `<img src="${esc(th.logo)}" alt="">` : esc(st.name.slice(0, 1))}</span>
-        <h1>${esc(st.name)}</h1>
-        <button class="icon-btn" id="my-orders">My orders</button>
-        ${S.hostMode ? '' : '<button class="icon-btn" id="switch" aria-label="Switch store">Stores</button>'}
-      </div>${th.banner ? `<img class="banner" src="${esc(th.banner)}" alt="">` : ''}</header>
-      <main class="wrap menu">
-        ${st.about ? `<p class="about">${esc(st.about)}</p>` : ''}
-        ${named.length > 1 ? `<nav class="cats" aria-label="Categories">${named.map(c => `<button class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</nav>` : ''}
-        ${S.menu.length ? cats.map(c => `<section data-section="${esc(c)}">${named.length ? `<h2 class="cat-title">${esc(c || 'More')}</h2>` : ''}
-          <div class="${th.layout === 'list' ? 'list' : 'grid'}">${S.menu.filter(p => (p.category || '') === c).map(itemCard).join('')}</div></section>`).join('')
-          : '<div class="empty"><p class="muted">The menu is being prepared. Check back soon.</p></div>'}
-      </main>
-      <div class="ticket-bar" id="tbar" hidden><button id="open-ticket"><span class="count" id="t-count"></span><span class="label">View order</span><span class="sum" id="t-sum"></span></button></div>`;
-    $$('.item').forEach(b => (b.onclick = () => openProduct(S.menu.find(p => p.id === b.dataset.id))));
-    $$('.chip').forEach(b => (b.onclick = () => { $(`[data-section="${CSS.escape(b.dataset.cat)}"]`).scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }));
-    $('#my-orders').onclick = showMyOrders;
-    if ($('#switch')) $('#switch').onclick = () => { ls.set('store', null); history.replaceState(null, '', '/'); showPicker(); };
+    S.ctx = rootCtx();
+    let frag;
+    try { frag = TPL.clean(TPL.render(S.pkg.templates.layout, S.ctx, { card: S.pkg.templates.card })); }
+    catch (e) { console.error(e); frag = TPL.clean(`<main class="wrap empty"><p>This store's design has a problem. Please try again later.</p></main>`); }
+    app.replaceChildren(frag);
+    app.insertAdjacentHTML('beforeend', `<div class="ticket-bar" id="tbar" hidden><button id="open-ticket"><span class="count" id="t-count"></span><span class="label">View order</span><span class="sum" id="t-sum"></span></button></div>`);
     $('#open-ticket').onclick = openTicket;
-    if (named.length > 1) watchCats();
-    updateBar(false);
+    applyFilter(); watchSections(); updateBar(false);
   }
-  function itemCard(p) {
-    const out = p.variants.every(v => v.available <= 0), n = inCart(p);
-    return `<button class="item${out ? ' out' : ''}" data-id="${esc(p.id)}" ${out ? 'aria-disabled="true"' : ''}>
-      <span class="ph">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : esc(p.name.slice(0, 1))}</span>
-      <span class="txt"><b>${esc(p.name)}</b>${p.description ? `<span class="desc">${esc(p.description)}</span>` : ''}<span class="price">${priceOf(p)}</span>${p.rating ? `<span class="stars" aria-label="${p.rating.avg} out of 5 stars, ${p.rating.count} ratings">★ ${p.rating.avg} <span class="muted">(${p.rating.count})</span></span>` : ''}</span>
-      ${n ? `<span class="qty-badge" aria-label="${n} in your order">${n}</span>` : ''}</button>`;
+  const cardNode = p => TPL.clean(TPL.render(S.pkg.templates.card, { ...S.ctx, ...cardCtx(p) })).firstElementChild;
+  function refreshCards() {
+    for (const el of $$('[data-card]', app)) {
+      const p = productById(el.dataset.card); if (!p) continue;
+      const focused = el.contains(document.activeElement) ? document.activeElement.dataset.action : null, next = cardNode(p);
+      if (!next) continue;
+      el.replaceWith(next);
+      if (focused) $(`[data-action="${focused}"]`, next)?.focus({ preventScroll: true });
+    }
   }
-  function watchCats() {
-    const chips = $$('.chip'), io = new IntersectionObserver(es => es.forEach(e => {
-      if (e.isIntersecting) chips.forEach(c => c.setAttribute('aria-pressed', String(c.dataset.cat === e.target.dataset.section)));
-    }), { rootMargin: '-40% 0px -55% 0px' });
-    $$('[data-section]').forEach(s => io.observe(s));
+  function bindTheme() {
+    app.addEventListener('click', e => {
+      const el = e.target.closest('[data-action]');
+      if (!el || !S.pkg || !app.contains(el) || el.matches('input')) return;
+      const p = el.dataset.id ? productById(el.dataset.id) : null;
+      switch (el.dataset.action) {
+        case 'product': return openProduct(p);
+        case 'quickview': return quickView(p);
+        case 'add': return quickAdd(p);
+        case 'cart': return openTicket();
+        case 'orders': return showMyOrders();
+        case 'stores': return switchStore();
+        case 'category': return pickCategory(el.dataset.category);
+        case 'all': S.filter = { q: '', cat: null }; clearSearch(); applyFilter(); return;
+        case 'home': S.filter = { q: '', cat: null }; clearSearch(); applyFilter(); return scrollTo({ top: 0, behavior: smooth() });
+        case 'scroll': return document.getElementById(el.dataset.target)?.scrollIntoView({ behavior: smooth() });
+      }
+    });
+    app.addEventListener('input', e => { if (e.target.matches('input[data-action="search"]')) { S.filter = { q: e.target.value.trim(), cat: null }; applyFilter(); } });
+    app.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input[data-action="search"]')) { e.preventDefault(); $('[data-results]', app)?.scrollIntoView({ behavior: smooth(), block: 'start' }); } });
+  }
+  const clearSearch = () => $$('input[data-action="search"]', app).forEach(i => (i.value = ''));
+  function pickCategory(cat) {
+    if ($('[data-slot="results"]', app)) { S.filter = { q: '', cat }; clearSearch(); applyFilter(); const r = $('[data-results]', app); r && r.getBoundingClientRect().top < 0 && r.scrollIntoView({ behavior: smooth() }); return; }
+    $(`[data-section="${CSS.escape(cat)}"]`, app)?.scrollIntoView({ behavior: smooth() });
+  }
+  // search and category filter: shown in the theme's results area (data-results / data-slot="results")
+  function applyFilter() {
+    const f = S.filter, on = !!(f.q || f.cat), slot = $('[data-slot="results"]', app);
+    $$('[data-action="category"]', app).forEach(b => b.setAttribute('aria-pressed', String(!!f.cat && b.dataset.category === f.cat)));
+    $$('[data-action="all"]', app).forEach(b => b.setAttribute('aria-pressed', String(!on)));
+    if (!slot) return;
+    $$('[data-home]', app).forEach(x => (x.hidden = on)); $$('[data-results]', app).forEach(x => (x.hidden = !on));
+    if (!on) { slot.replaceChildren(); return; }
+    const q = f.q.toLowerCase();
+    const list = S.menu.filter(p => (!f.cat || (p.category || '') === f.cat) && (!q || [p.name, p.description, p.category, ...p.variants.map(v => v.name)].join(' ').toLowerCase().includes(q)));
+    $$('[data-bind="results-title"]', app).forEach(x => (x.textContent = f.q ? `${list.length} result${list.length === 1 ? '' : 's'} for “${f.q}”` : f.cat));
+    if (list.length) slot.replaceChildren(...list.map(cardNode).filter(Boolean));
+    else slot.innerHTML = `<p class="so-empty">Nothing matches “${esc(f.q)}”. Try another word, or <button type="button" class="linkish" data-action="all">see everything</button>.</p>`;
+  }
+  let sectionWatch;
+  function watchSections() {
+    sectionWatch && sectionWatch.disconnect();
+    if ($('[data-slot="results"]', app) || !$('[data-section]', app)) return;
+    const chips = $$('[data-action="category"]', app);
+    sectionWatch = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) chips.forEach(c => c.setAttribute('aria-pressed', String(c.dataset.category === e.target.dataset.section))); }), { rootMargin: '-40% 0px -55% 0px' });
+    $$('[data-section]', app).forEach(s => sectionWatch.observe(s));
   }
   function updateBar(bump = true) {
-    const n = cartCount(), bar = $('#tbar'); if (!bar) return;
-    bar.hidden = n === 0;
-    $('#t-count').textContent = n; $('#t-sum').textContent = money(cartTotal());
-    if (bump) { bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump'); }
-    $$('.item').forEach(b => { const p = S.menu.find(x => x.id === b.dataset.id); b.outerHTML = itemCard(p); });
-    $$('.item').forEach(b => (b.onclick = () => openProduct(S.menu.find(p => p.id === b.dataset.id))));
+    const n = cartCount(), total = money(cartTotal()), bar = $('#tbar');
+    document.body.dataset.cart = n ? 'full' : 'empty';
+    if (S.ctx) S.ctx.cart = { count: n, total };
+    $$('[data-bind="cart-count"]', app).forEach(x => (x.textContent = n));
+    $$('[data-bind="cart-total"]', app).forEach(x => (x.textContent = total));
+    if (bar) {
+      bar.hidden = n === 0;
+      $('#t-count').textContent = n; $('#t-sum').textContent = total;
+      if (bump) { bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump'); }
+    }
+    refreshCards();
+  }
+  function addToCart(p, id, qty) { S.cart[id] = (S.cart[id] || 0) + qty; saveCart(); S.quote = null; updateBar(); toast(`Added ${p.name}`); }
+  // the round + on a card: one option → straight in; several → quick view
+  function quickAdd(p) {
+    if (!p) return;
+    const open = p.variants.filter(v => v.available - (S.cart[v.id] || 0) > 0);
+    if (p.variants.length > 1) return quickView(p);
+    if (!open.length) return toast(p.variants.some(v => v.available > 0) ? 'All available units are in your order' : 'Sold out for now');
+    addToCart(p, open[0].id, 1);
   }
 
   // ── sheets ──
-  function openSheet(html, onClose) {
-    sheetRoot.innerHTML = `<div class="scrim"></div><div class="sheet" role="dialog" aria-modal="true"><div class="inner"><div class="grab" aria-hidden="true"></div>${html}</div></div>`;
-    const close = () => { document.body.classList.remove('sheet-in'); setTimeout(() => { sheetRoot.innerHTML = ''; onClose && onClose(); }, 260); document.removeEventListener('keydown', esc_); };
+  function openSheet(html, onClose, cls = '') {
+    sheetRoot.innerHTML = `<div class="scrim"></div><div class="sheet ${cls}" role="dialog" aria-modal="true"><div class="inner"><div class="grab" aria-hidden="true"></div>${html}</div></div>`;
+    const back = document.activeElement;
+    const close = () => { document.body.classList.remove('sheet-in'); setTimeout(() => { sheetRoot.innerHTML = ''; back && back.isConnected && back.focus({ preventScroll: true }); onClose && onClose(); }, 260); document.removeEventListener('keydown', esc_); };
     const esc_ = e => { if (e.key === 'Escape') close(); };
     $('.scrim', sheetRoot).onclick = close; document.addEventListener('keydown', esc_);
+    const t = $('h2', sheetRoot); if (t) { t.id ||= 'sheet-title'; $('.sheet', sheetRoot).setAttribute('aria-labelledby', t.id); }
     requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('sheet-in')));
     const first = $('button, input', $('.sheet', sheetRoot)); first && first.focus({ preventScroll: true });
     return close;
   }
 
+  // quick view: photo, options, quantity and add, without leaving the shelf
+  function quickView(p) {
+    if (!p) return;
+    const sel = { id: (p.variants.find(v => v.available > 0) || p.variants[0]).id, qty: 1 };
+    const v = () => p.variants.find(x => x.id === sel.id);
+    let after = null;
+    const close = openSheet(`
+      <button class="close-x" aria-label="Close">×</button>
+      <div class="qv">
+        <div class="qv-media">${p.image ? `<img src="${esc(p.image)}" alt="">` : `<span aria-hidden="true">${esc(p.name.slice(0, 1))}</span>`}</div>
+        <div class="qv-info">
+          ${p.category ? `<p class="qv-cat">${esc(p.category)}</p>` : ''}
+          <h2 id="qv-title">${esc(p.name)}</h2>
+          ${p.rating ? `<p class="stars">★ ${p.rating.avg.toFixed(1)} <span class="muted">(${p.rating.count} rating${p.rating.count === 1 ? '' : 's'})</span></p>` : ''}
+          <p class="qv-price" id="qv-price"></p>
+          ${p.description ? `<p class="qv-desc">${esc(p.description)}</p>` : ''}
+          ${p.variants.length > 1 ? `<div class="section-title" id="qv-opt">Choose one</div><div class="qv-vars" role="radiogroup" aria-labelledby="qv-opt">${p.variants.map(x => `
+            <button type="button" role="radio" aria-checked="false" data-v="${esc(x.id)}" ${x.available <= 0 ? 'disabled' : ''}><b>${esc(x.name)}</b><span>${x.available <= 0 ? 'Sold out' : money(x.price)}</span></button>`).join('')}</div>` : ''}
+          <div class="qv-buy"><div class="stepper"><button id="qm" aria-label="Fewer">−</button><output id="qq" aria-live="polite">1</output><button id="qp" aria-label="More">+</button></div><button class="btn" id="qv-add"></button></div>
+          <p class="note" id="qv-note"></p>
+          <button class="linkish qv-more" id="qv-more">See full details${p.rating ? ' and reviews' : ''}</button>
+        </div>
+      </div>`, () => after && after(), 'wide');
+    const sync = () => {
+      const x = v(), room = x.available - (S.cart[x.id] || 0);
+      sel.qty = Math.max(1, Math.min(sel.qty, Math.max(room, 1)));
+      $('#qv-price').textContent = money(x.price * sel.qty);
+      $('#qq').value = sel.qty; $('#qm').disabled = sel.qty <= 1; $('#qp').disabled = sel.qty >= room;
+      $$('.qv-vars button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === sel.id)));
+      const btn = $('#qv-add'); btn.disabled = room <= 0;
+      btn.textContent = x.available <= 0 ? 'Sold out for now' : room <= 0 ? 'All available units are in your order' : 'Add to order';
+      $('#qv-note').textContent = x.available > 0 && x.available <= 5 ? `Only ${x.available} left` : S.cart[x.id] ? `${S.cart[x.id]} already in your order` : '';
+    };
+    $$('.qv-vars button').forEach(b => (b.onclick = () => { sel.id = b.dataset.v; sel.qty = 1; sync(); }));
+    $('#qm').onclick = () => { sel.qty--; sync(); }; $('#qp').onclick = () => { sel.qty++; sync(); };
+    $('.close-x', sheetRoot).onclick = close;
+    $('#qv-add').onclick = () => { addToCart(p, sel.id, sel.qty); close(); };
+    $('#qv-more').onclick = () => { after = () => openProduct(p); close(); };
+    sync();
+  }
+
   function openProduct(p) {
-    if (!p || p.variants.every(v => v.available <= 0)) return toast('Sold out for now');
+    if (!p) return;
+    if (p.variants.every(v => v.available <= 0)) return quickView(p);
     const sel = { id: (p.variants.find(v => v.available > 0) || {}).id, qty: 1 };
     const v = () => p.variants.find(x => x.id === sel.id);
     const close = openSheet(`
@@ -138,8 +273,8 @@
     const sync = () => { const a = v().available - (S.cart[sel.id] || 0); sel.qty = Math.max(1, Math.min(sel.qty, Math.max(a, 1))); $('#pq').value = sel.qty; $('#pm').disabled = sel.qty <= 1; $('#pp').disabled = sel.qty >= a; $('#add').disabled = a <= 0; $('#add').textContent = a <= 0 ? 'All available units are in your order' : `Add to order – ${money(v().price * sel.qty)}`; };
     $$('input[name=v]').forEach(r => (r.onchange = () => { sel.id = r.value; sync(); }));
     $('#pm').onclick = () => { sel.qty--; sync(); }; $('#pp').onclick = () => { sel.qty++; sync(); };
-    $('.close-x').onclick = close;
-    $('#add').onclick = () => { S.cart[sel.id] = (S.cart[sel.id] || 0) + sel.qty; saveCart(); S.quote = null; close(); updateBar(); toast(`Added ${p.name}`); };
+    $('.close-x', sheetRoot).onclick = close;
+    $('#add').onclick = () => { addToCart(p, sel.id, sel.qty); close(); };
     sync();
     if (p.rating) loadReviews().then(all => {
       const mine = all.filter(r => r.product_id === p.id).slice(0, 4), box = $('#p-reviews'); if (!box || !mine.length) return;
@@ -179,7 +314,7 @@
       <div id="err"></div>
       <button class="btn" id="place" disabled>Place order</button>
       <p class="note">Prices are checked again when you place the order.</p>`, () => { S.tsWidget = null; });
-    $('.close-x').onclick = close;
+    $('.close-x', sheetRoot).onclick = close;
     me.loc && (S.loc = me.loc);
     $$('.seg button').forEach(b => (b.onclick = () => { S.mode = b.dataset.mode; S.quote = null; syncMode(); }));
     $('#loc').onclick = locate;
@@ -340,7 +475,7 @@
       <div class="section-title">Ordered on another phone?</div>
       <div class="row2"><div class="field"><label for="on">Order number</label><input id="on" autocapitalize="characters"></div><div class="field"><label for="op">WhatsApp number</label><input id="op" inputmode="tel"></div></div>
       <button class="btn ghost" id="lookup">Find order</button>`);
-    $('.close-x').onclick = close;
+    $('.close-x', sheetRoot).onclick = close;
     if ($('#biz-out')) $('#biz-out').onclick = () => { ls.set('b2b.' + S.slug, null); S.quote = null; close(); toast('Logged out of your business account'); };
     if ($('#biz-in')) $('#biz-in').onclick = async e => {
       const btn = e.target; btn.disabled = true;
@@ -403,7 +538,7 @@
       <div class="field"><label for="r-photos">Photos, 1 to 3</label><input id="r-photos" type="file" accept="image/*" multiple></div>
       <div id="r-prev" class="note"></div><div id="r-err"></div>
       <button class="btn" id="r-send">Send report</button>`);
-    $('.close-x').onclick = close;
+    $('.close-x', sheetRoot).onclick = close;
     $('#r-photos').onchange = async e => {
       imgs = []; $('#r-prev').textContent = 'Preparing photos…';
       try { for (const f of [...e.target.files].slice(0, 3)) imgs.push(await shrink(f)); $('#r-prev').textContent = `${imgs.length} photo${imgs.length === 1 ? '' : 's'} ready`; }
@@ -418,6 +553,6 @@
       catch (err) { $('#r-err').innerHTML = `<div class="error-box">${esc(err.message)}</div>`; btn.disabled = false; btn.textContent = 'Send report'; }
     };
   }
-  window.addEventListener('popstate', () => { if (S.info && !location.pathname.startsWith('/order/')) renderShop(); });
+  window.addEventListener('popstate', () => { if (S.info && S.pkg && !location.pathname.startsWith('/order/')) renderShop(); });
   boot();
 })();

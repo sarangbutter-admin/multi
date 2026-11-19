@@ -1,0 +1,7 @@
+<div class="item{{#sold_out}} out{{/sold_out}}" data-card="{{id}}">
+  <button class="item-open" data-action="product" data-id="{{id}}" aria-label="{{name}}, {{price}}"></button>
+  <span class="ph">{{#image}}<img src="{{image}}" alt="" loading="lazy">{{/image}}{{^image}}{{initial}}{{/image}}</span>
+  <span class="txt"><b>{{name}}</b>{{#description}}<span class="desc">{{description}}</span>{{/description}}<span class="price">{{#from}}from {{/from}}{{price}}</span>{{#rating}}<span class="stars" aria-label="{{avg}} out of 5 stars, {{count}} ratings">★ {{avg}} <span class="muted">({{count}})</span></span>{{/rating}}</span>
+  <button class="qv-btn" data-action="quickview" data-id="{{id}}" aria-label="Quick view: {{name}}"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+  {{#in_cart}}<span class="qty-badge" aria-label="{{in_cart}} in your order">{{in_cart}}</span>{{/in_cart}}
+</div>

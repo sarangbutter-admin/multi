@@ -25,18 +25,21 @@ async function seed() {
   const kopi = await mk('kopi-pagi', 'Kopi Pagi', { primary: '#12372A', accent: '#C6F432', background: '#10201A', surface: '#18302A', text: '#EAF4E4', radius: 6, font: 'Space Grotesk', mode: 'dark', layout: 'list' }, 'Coffee and toast for early people.');
   const wj = await db.insert('warehouses', { tenant_id: sarang.id, name: 'Kitchen Jakarta', address: 'Jl. Kemang Raya 10', postal_code: '12730', lat: -6.2615, lng: 106.8106 });
   const wb = await db.insert('warehouses', { tenant_id: sarang.id, name: 'Kitchen Bandung', address: 'Jl. Braga 5', postal_code: '40111', lat: -6.9175, lng: 107.6191 });
-  const menu = [['Butter cookies', 'Cookies', [['Box of 6', 55000, 400], ['Box of 12', 98000, 800]]], ['Salted caramel brownie', 'Brownies', [['Single', 22000, 90], ['Box of 4', 80000, 360]]], ['Cheese tart', 'Pastry', [['Single', 18000, 70]]], ['Sourdough loaf', 'Pastry', [['Whole', 65000, 700]]]];
-  for (const [i, [name, category, vs]] of menu.entries()) {
-    const p = await db.insert('products', { tenant_id: sarang.id, name, category, sort: i, description: `${name}, made fresh.` });
+  const menu = [['Butter cookies', 'Cookies', [['Box of 6', 55000, 400], ['Box of 12', 98000, 800]], 'butter-cookies'], ['Chocolate chip cookies', 'Cookies', [['Box of 6', 60000, 420]], 'choc-chip'],
+    ['Salted caramel brownie', 'Brownies', [['Single', 22000, 90], ['Box of 4', 80000, 360]], 'brownie'], ['Fudge brownie bites', 'Brownies', [['Box of 9', 75000, 300]], 'brownie-bites'],
+    ['Cheese tart', 'Pastry', [['Single', 18000, 70]], 'cheese-tart'], ['Almond croissant', 'Pastry', [['Single', 32000, 90]], 'croissant'], ['Sourdough loaf', 'Pastry', [['Whole', 65000, 700]], 'sourdough']];
+  for (const [i, [name, category, vs, img]] of menu.entries()) {
+    const p = await db.insert('products', { tenant_id: sarang.id, name, category, sort: i, image: `/demo/${img}.svg`, description: `${name}, baked fresh every morning in small batches.` });
     for (const [vn, price, weight_g] of vs) {
       const v = await db.insert('variants', { tenant_id: sarang.id, product_id: p.id, name: vn, price, weight_g });
-      await db.insert('stock', { tenant_id: sarang.id, warehouse_id: wj.id, variant_id: v.id, qty: 12, reserved: 0 });
-      await db.insert('stock', { tenant_id: sarang.id, warehouse_id: wb.id, variant_id: v.id, qty: name === 'Cheese tart' ? 0 : 20, reserved: 0 });
+      const few = { 'Almond croissant': 3, 'Fudge brownie bites': 0 }[name];  // to show "Only 3 left" and "Sold out"
+      await db.insert('stock', { tenant_id: sarang.id, warehouse_id: wj.id, variant_id: v.id, qty: few ?? 12, reserved: 0 });
+      await db.insert('stock', { tenant_id: sarang.id, warehouse_id: wb.id, variant_id: v.id, qty: few ?? (name === 'Cheese tart' ? 0 : 20), reserved: 0 });
     }
   }
   const wk = await db.insert('warehouses', { tenant_id: kopi.id, name: 'Kopi Pagi Tebet', address: 'Jl. Tebet Barat 3', postal_code: '12810', lat: -6.2386, lng: 106.8527 });
-  for (const [name, category, price] of [['Iced latte', 'Coffee', 28000], ['Flat white', 'Coffee', 30000], ['Butter toast', 'Toast', 22000]]) {
-    const p = await db.insert('products', { tenant_id: kopi.id, name, category, description: `${name}, made to order.` });
+  for (const [name, category, price, img] of [['Iced latte', 'Coffee', 28000, 'iced-latte'], ['Flat white', 'Coffee', 30000, 'flat-white'], ['Butter toast', 'Toast', 22000, 'butter-toast']]) {
+    const p = await db.insert('products', { tenant_id: kopi.id, name, category, image: `/demo/${img}.svg`, description: `${name}, made to order.` });
     const v = await db.insert('variants', { tenant_id: kopi.id, product_id: p.id, name, price, weight_g: 250 });
     await db.insert('stock', { tenant_id: kopi.id, warehouse_id: wk.id, variant_id: v.id, qty: 30, reserved: 0 });
   }
@@ -48,7 +51,7 @@ async function seed() {
 }
 await seed();
 
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://' + req.headers.host);
   if (!url.pathname.startsWith('/api/')) {

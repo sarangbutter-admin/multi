@@ -1,0 +1,22 @@
+<article class="mk-card{{#sold_out}} is-out{{/sold_out}}" data-card="{{id}}">
+  <div class="mk-media">
+    <button class="mk-photo" data-action="product" data-id="{{id}}" aria-label="{{name}}, see details">
+      {{#image}}<img src="{{image}}" alt="" loading="lazy">{{/image}}{{^image}}<span class="mk-ph-i" aria-hidden="true">{{initial}}</span>{{/image}}
+    </button>
+    {{#badge}}<span class="mk-badge">{{badge}}</span>{{/badge}}
+    <button class="mk-qv" data-action="quickview" data-id="{{id}}" aria-label="Quick view: {{name}}">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Quick view</span>
+    </button>
+  </div>
+  <div class="mk-card-body">
+    {{#rating}}<span class="mk-stars" aria-label="{{avg}} out of 5 stars, {{count}} ratings">★ {{avg}} <small>({{count}})</small></span>{{/rating}}
+    <h3><button data-action="product" data-id="{{id}}">{{name}}</button></h3>
+    <div class="mk-buy">
+      <p class="mk-price">{{#from}}<small>From</small>{{/from}}<span>{{price}}</span></p>
+      {{^sold_out}}<button class="mk-add{{#in_cart}} is-in{{/in_cart}}" data-action="add" data-id="{{id}}" aria-label="Add {{name}} to your order{{#in_cart}}, {{in_cart}} in your order{{/in_cart}}">
+        {{#in_cart}}<b>{{in_cart}}</b>{{/in_cart}}{{^in_cart}}<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>{{/in_cart}}
+      </button>{{/sold_out}}
+    </div>
+  </div>
+</article>

@@ -1,0 +1,20 @@
+{
+  "name": "Classic",
+  "version": "1.0.0",
+  "author": "Sarang Order",
+  "description": "A simple phone-first menu: big store colour header, category chips and a photo grid or list.",
+  "settings": [
+    { "type": "header", "label": "Colours and type" },
+    { "id": "primary", "type": "color", "label": "Main colour", "default": "#1F6F4A" },
+    { "id": "accent", "type": "color", "label": "Highlight", "default": "#FFD23F" },
+    { "id": "background", "type": "color", "label": "Background", "default": "#F3F7F2" },
+    { "id": "surface", "type": "color", "label": "Cards", "default": "#FFFFFF" },
+    { "id": "text", "type": "color", "label": "Text", "default": "#13241B" },
+    { "id": "font", "type": "font", "label": "Font", "default": "Plus Jakarta Sans" },
+    { "id": "radius", "type": "range", "label": "Corner roundness", "min": 0, "max": 32, "step": 1, "default": 14 },
+    { "type": "header", "label": "Pictures and layout" },
+    { "id": "logo", "type": "image", "label": "Logo", "info": "Square image link (https://)", "default": "" },
+    { "id": "banner", "type": "image", "label": "Banner", "info": "Wide image link, optional", "default": "" },
+    { "id": "layout", "type": "select", "label": "Menu layout", "options": [{ "value": "grid", "label": "Photo grid" }, { "value": "list", "label": "List" }], "default": "grid" }
+  ]
+}

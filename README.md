@@ -16,7 +16,8 @@ Midtrans · DOKU · Biteship webhooks ─────────┘        │
 |---|---|
 | **Tenants** | Self sign-up → store is `pending` (owner can set it up) → you approve in super-admin → `active`. Suspend any time. |
 | **Which store?** | `X-Tenant: <slug>` header (the shared app), `<slug>.PLATFORM_DOMAIN`, or a custom domain you add. |
-| **Themes** | Colours, font (8 allowed), corner radius, light/dark, grid/list, logo, banner. Validated; defaults filled in. |
+| **Themes** | Each store picks a theme (built in: **Market**, the default, and **Classic**), changes its colours, pictures and words with a live preview, or uploads its own theme .zip. Stores can share themes in a theme store the platform admin approves. Themes are HTML templates + CSS, no scripts. See [THEMES.md](THEMES.md). |
+| **Quick view** | Every product card in every theme has quick view: photo, options, quantity and add, without leaving the page. |
 | **Per-store keys** | Midtrans, DOKU, Biteship, Turnstile. AES-256-GCM encrypted with `MASTER_KEY`; shown masked; owner-only. |
 | **Payments** | Midtrans Snap, DOKU Checkout, manual transfer (staff confirms). Webhooks verified by signature + amount, safe to repeat. |
 | **Turnstile** | Per store on checkout; platform key on sign-up. Off until a store adds keys. |
@@ -35,7 +36,7 @@ Midtrans · DOKU · Biteship webhooks ─────────┘        │
 - Rate limiting is per server instance; Turnstile is the main bot guard.
 
 ## Setup (≈20 minutes, once)
-1. **Supabase** → new project → SQL Editor → run `0001_multitenant.sql`, then `0002_discounts_feedback.sql` (both safe to run twice). Copy Project URL + secret key.
+1. **Supabase** → new project → SQL Editor → run `0001_multitenant.sql`, `0002_discounts_feedback.sql`, then `0003_themes.sql` (all safe to run twice). Copy Project URL + secret key.
 2. **GitHub** → push this folder to a new repo.
 3. **Netlify** → import the repo → set the variables in `.env.example` → deploy.
    Point `*.yourdomain` (wildcard DNS) at Netlify so every store gets `<slug>.yourdomain`.
@@ -47,16 +48,16 @@ Midtrans · DOKU · Biteship webhooks ─────────┘        │
 > Test Midtrans and DOKU in **sandbox** first (`production: false`) — the request formats follow their docs but haven't been run against the live gateways yet.
 
 ## API (all JSON; store routes need `X-Tenant` or a store domain)
-**Customer:** `GET /api/store` · `GET /api/menu` · `POST /api/quote` · `POST /api/checkout` · `GET /api/order?no=&phone=` · `GET /api/reviews` · `POST /api/review` · `POST /api/complaint` · `POST /api/b2b/login`
+**Customer:** `GET /api/store` · `GET /api/themes/:ref/package` · `GET /api/menu` · `POST /api/quote` · `POST /api/checkout` · `GET /api/order?no=&phone=` · `GET /api/reviews` · `POST /api/review` · `POST /api/complaint` · `POST /api/b2b/login`
 **Account:** `POST /api/signup` · `POST /api/login` · `POST /api/logout` · `GET /api/me` (Bearer token or cookie)
 **Back office:** `/api/admin/store|theme|settings|secrets/:provider|staff|warehouses|products|variants|zones|stock|orders`,
-`/api/admin/coupons|b2b|complaints|reviews`, `POST /api/admin/orders/:no/confirm-payment`, `POST /api/admin/orders/:no/book`
-**Super-admin:** `POST /api/super/setup` · `GET /api/super/tenants` · `POST /api/super/tenants/:id/approve|suspend|domain`
+`/api/admin/coupons|b2b|complaints|reviews|themes`, `POST /api/admin/themes` (upload .zip), `POST /api/admin/themes/:ref/use|submit|withdraw`, `POST /api/admin/orders/:no/confirm-payment`, `POST /api/admin/orders/:no/book`
+**Super-admin:** `POST /api/super/setup` · `GET /api/super/themes` · `POST /api/super/themes/:id/approve|reject` · `GET /api/super/tenants` · `POST /api/super/tenants/:id/approve|suspend|domain`
 **Webhooks:** `/api/webhook/midtrans/:slug` · `/api/webhook/doku/:slug` · `/api/webhook/biteship/:slug/:token`
 
 ## Run locally
 ```
-npm test      # 17 automated checks: isolation, signatures, stock, routing, expiry, discounts, feedback (no accounts needed)
+npm test      # 23 automated checks: isolation, signatures, stock, routing, expiry, discounts, feedback, themes (no accounts needed)
 npm run dev   # http://localhost:8888 with an in-memory database (super setup key: dev-setup-key-123456)
 ```
 
