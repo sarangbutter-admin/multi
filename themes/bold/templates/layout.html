@@ -43,6 +43,15 @@
         {{#settings.perk_3}}<li>{{settings.perk_3}}</li>{{/settings.perk_3}}
       </ul>
 
+      {{#has_categories}}
+      <section class="bd-wrap bd-tiles" aria-label="Shop by category">
+        {{#categories}}<button class="bd-tile" data-action="category" data-category="{{name}}">
+          <span class="bd-tile-pic">{{#image}}<img src="{{image}}" alt="" loading="lazy">{{/image}}{{^image}}<b aria-hidden="true">{{initial}}</b>{{/image}}</span>
+          <span class="bd-tile-name">{{name}}</span><small>{{count_label}}</small>
+        </button>{{/categories}}
+      </section>
+      {{/has_categories}}
+
       <div id="bd-shelves" class="bd-wrap">
         {{#sections}}
         <section class="bd-sec" data-section="{{name}}">
