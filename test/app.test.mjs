@@ -94,10 +94,14 @@ test('theme and settings are validated', async () => {
   // "layout" belongs to the Classic theme: ignored while Market is active, kept once Classic is in use
   let ok = await h.call('PUT', '/api/admin/theme', { ...S.o, body: { primary: '#0A7B5C', font: 'Poppins', layout: 'list', mode: 'dark', radius: 8 } });
   assert.deepEqual([ok.body.theme.primary, ok.body.theme.font, ok.body.theme.layout], ['#0A7B5C', 'Poppins', undefined]);
-  assert.equal((await h.call('POST', '/api/admin/themes/classic/use', S.o)).status, 200);
+  assert.equal((await h.call('POST', '/api/admin/themes/classic/use', { ...S.o, body: { keep_look: true } })).status, 200);
   assert.equal((await h.call('PUT', '/api/admin/theme', { ...S.o, body: { layout: 'tiles' } })).body.error, 'bad_theme');
   ok = await h.call('PUT', '/api/admin/theme', { ...S.o, body: { layout: 'list' } });
   assert.deepEqual([ok.body.theme.primary, ok.body.theme.layout], ['#0A7B5C', 'list']);
+  // switching without keep_look starts from the theme's own plain look
+  await h.call('POST', '/api/admin/themes/market/use', S.o);
+  const plain = (await h.call('GET', '/api/store', { tenant: S.slug })).body.theme;
+  assert.deepEqual([plain.primary, plain.font], ['#146C43', 'Outfit']);
   assert.equal((await h.call('PUT', '/api/admin/settings', { ...S.o, body: { payments: ['paypal'] } })).body.error, 'bad_settings');
 });
 

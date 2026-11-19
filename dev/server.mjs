@@ -21,8 +21,8 @@ async function seed() {
     await db.insert('users', { tenant_id: t.id, email: `owner@${slug}.test`, name: 'Owner', role: 'owner', cred: await mkCred('demo-password-1') });
     return t;
   };
-  const sarang = await mk('sarang', 'Sarang Butter', { primary: '#9A3B1F', accent: '#F6C453', background: '#FFF6E8', surface: '#FFFFFF', text: '#2B1608', radius: 20, font: 'Fredoka', layout: 'grid' }, 'Small-batch butter cookies and brownies, baked every morning.');
-  const kopi = await mk('kopi-pagi', 'Kopi Pagi', { primary: '#12372A', accent: '#C6F432', background: '#10201A', surface: '#18302A', text: '#EAF4E4', radius: 6, font: 'Space Grotesk', mode: 'dark', layout: 'list' }, 'Coffee and toast for early people.');
+  const sarang = await mk('sarang', 'Sarang Butter', {}, 'Small-batch butter cookies and brownies, baked every morning.');
+  const kopi = await mk('kopi-pagi', 'Kopi Pagi', {}, 'Coffee and toast for early people.');
   const wj = await db.insert('warehouses', { tenant_id: sarang.id, name: 'Kitchen Jakarta', address: 'Jl. Kemang Raya 10', postal_code: '12730', lat: -6.2615, lng: 106.8106 });
   const wb = await db.insert('warehouses', { tenant_id: sarang.id, name: 'Kitchen Bandung', address: 'Jl. Braga 5', postal_code: '40111', lat: -6.9175, lng: 107.6191 });
   const menu = [['Butter cookies', 'Cookies', [['Box of 6', 55000, 400], ['Box of 12', 98000, 800]], 'butter-cookies'], ['Chocolate chip cookies', 'Cookies', [['Box of 6', 60000, 420]], 'choc-chip'],
@@ -42,6 +42,18 @@ async function seed() {
     const p = await db.insert('products', { tenant_id: kopi.id, name, category, image: `/demo/${img}.svg`, description: `${name}, made to order.` });
     const v = await db.insert('variants', { tenant_id: kopi.id, product_id: p.id, name, price, weight_g: 250 });
     await db.insert('stock', { tenant_id: kopi.id, warehouse_id: wk.id, variant_id: v.id, qty: 30, reserved: 0 });
+  }
+  // a neutral, unlisted store used for theme library pictures: /?store=your-store
+  const demo = await mk('your-store', 'Your Store', {}, 'Fresh food and everyday treats, ready for pick up or delivery.');
+  await db.update('tenants', { id: demo.id }, { settings: { ...demo.settings, listed: false } });
+  const wd = await db.insert('warehouses', { tenant_id: demo.id, name: 'Main store', address: 'Jl. Contoh 1', postal_code: '10110', lat: -6.2, lng: 106.82 });
+  for (const { id: pid, ...p } of await db.select('products', { tenant_id: sarang.id })) {
+    const np = await db.insert('products', { ...p, tenant_id: demo.id, description: p.name + ', made fresh.' });
+    for (const { id: vid, ...v } of await db.select('variants', { product_id: pid })) {
+      const nv = await db.insert('variants', { ...v, tenant_id: demo.id, product_id: np.id });
+      const st = await db.one('stock', { warehouse_id: wj.id, variant_id: vid });
+      await db.insert('stock', { tenant_id: demo.id, warehouse_id: wd.id, variant_id: nv.id, qty: st ? st.qty : 10, reserved: 0 });
+    }
   }
   await db.insert('coupons', { tenant_id: sarang.id, code: 'WELCOME10', type: 'pct', value: 10, min_purchase: 50000, max_uses: 100 });
   await db.insert('coupons', { tenant_id: sarang.id, code: 'FIVEK', type: 'amt', value: 5000 });

@@ -53,7 +53,7 @@
 .mk-hero-img { width: 100%; max-width: 440px; max-height: 230px; justify-self: center; aspect-ratio: 5 / 4; object-fit: contain; margin-top: 10px; }
 .mk-tiles { background: var(--surface); border-radius: calc(var(--radius) * 1.4); padding: 16px; display: flex; flex-direction: column; }
 .mk-tiles h2 { font-size: 17px; margin: 2px 2px 12px; font-weight: 800; }
-.mk-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; flex: 1; }
+.mk-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; align-content: start; }
 .mk-tile { border: 0; background: var(--bg); color: inherit; border-radius: var(--radius); padding: 12px 6px 10px; display: grid; justify-items: center; align-content: center; gap: 4px; font-size: 14px; font-weight: 700; line-height: 1.2; text-align: center; }
 .mk-tile small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .mk-tile img, .mk-tile-i { width: 56px; height: 56px; object-fit: contain; margin-bottom: 4px; }
@@ -66,7 +66,8 @@
 }
 @media (min-width: 1000px) {
   .mk-hero { margin-top: 20px; gap: 16px; }
-  .mk-hero.has-tiles { grid-template-columns: minmax(0, 1fr) 340px; }
+  .mk-hero.has-tiles { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  .mk-tile { min-height: 132px; }
 }
 
 /* why order here */

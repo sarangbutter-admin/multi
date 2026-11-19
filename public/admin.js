@@ -361,7 +361,10 @@
 
     // library actions
     const act = (sel, fn) => $$(sel).forEach(b => (b.onclick = async () => { busy(b, true, '…'); try { await fn(b); } catch (e) { toast(e.message, 'bad'); busy(b, false); } }));
-    act('[data-use]', async b => { await call('POST', `/api/admin/themes/${b.dataset.use}/use`); A.store = await call('GET', '/api/admin/store'); toast('Theme changed. Your shop uses it now.'); lookView(); });
+    act('[data-use]', async b => {
+      if (!confirm("Switch to this theme? Your shop starts with the theme's own colours and words, and you can change them here afterwards.")) return busy(b, false);
+      await call('POST', `/api/admin/themes/${b.dataset.use}/use`); A.store = await call('GET', '/api/admin/store'); toast('Theme changed. Pick your colours below.'); lookView();
+    });
     act('[data-dl]', async b => { const r = await call('GET', `/api/admin/themes/${b.dataset.dl}/download`); saveB64(r.filename, r.zip); busy(b, false); });
     act('[data-share]', async b => { await call('POST', `/api/admin/themes/${b.dataset.share}/submit`); toast('Sent for review. It appears in the theme store once approved.'); lookView(); });
     act('[data-unshare]', async b => { await call('POST', `/api/admin/themes/${b.dataset.unshare}/withdraw`); toast('No longer shared. Stores already using it keep it.'); lookView(); });
@@ -371,11 +374,12 @@
     });
     $$('[data-pre]').forEach(b => (b.onclick = () => {
       dlg.innerHTML = `<form method="dialog" class="pre-dlg"><div class="key-head"><h3>Preview</h3><button type="button" class="btn sec" data-close>Close</button></div>
-        <p class="muted small">Your products and colours in this theme. Nothing changes for customers until you choose "Use this theme".</p>
-        <div class="pv-frame phone big"><iframe title="Theme preview" src="${shopUrl('&theme=' + encodeURIComponent(b.dataset.pre))}"></iframe></div>
+        <p class="muted small">Your products in this theme, with its own colours. Nothing changes for customers until you choose "Use this theme".</p>
+        <div class="pv-frame phone big"><iframe title="Theme preview" src="${shopUrl('&defaults=1&theme=' + encodeURIComponent(b.dataset.pre))}"></iframe></div>
+        <label class="check" style="margin-top:12px"><input type="checkbox" id="keep-look"><span>Keep my current colours and font<small>Off: start from this theme's own look and change it afterwards</small></span></label>
         <div class="actions"><button type="button" class="btn" data-go>Use this theme</button></div></form>`;
       $('[data-close]', dlg).onclick = () => dlg.close();
-      $('[data-go]', dlg).onclick = async e => { busy(e.target, true, '…'); try { await call('POST', `/api/admin/themes/${b.dataset.pre}/use`); dlg.close(); A.store = await call('GET', '/api/admin/store'); toast('Theme changed. Your shop uses it now.'); lookView(); } catch (err) { toast(err.message, 'bad'); busy(e.target, false); } };
+      $('[data-go]', dlg).onclick = async e => { busy(e.target, true, '…'); try { await call('POST', `/api/admin/themes/${b.dataset.pre}/use`, { keep_look: $('#keep-look', dlg).checked }); dlg.close(); A.store = await call('GET', '/api/admin/store'); toast('Theme changed. Your shop uses it now.'); lookView(); } catch (err) { toast(err.message, 'bad'); busy(e.target, false); } };
       dlg.showModal();
     }));
     const up = $('label:has(#tz)'); up.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#tz').click(); } };
