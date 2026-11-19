@@ -18,13 +18,13 @@
     { "id": "announcement", "type": "text", "label": "Message across the top", "info": "Leave empty to hide it", "default": "Order today. Pick up or delivery." },
 
     { "type": "header", "label": "Big banner" },
-    { "id": "hero_title", "type": "text", "label": "Headline", "info": "Leave empty to show your store name", "default": "Made fresh. Packed with care." },
+    { "id": "hero_title", "type": "text", "label": "Headline", "info": "Leave empty to show your store name", "default": "Fresh groceries, fast." },
     { "id": "hero_text", "type": "textarea", "label": "Text under the headline", "info": "Leave empty to show your store description", "default": "" },
     { "id": "hero_button", "type": "text", "label": "Button", "default": "Shop now" },
     { "id": "hero_image", "type": "image", "label": "Banner picture", "info": "A cut-out picture on a plain background works best", "default": "asset:hero.svg" },
 
     { "type": "header", "label": "Blue strip" },
-    { "id": "perk_1", "type": "text", "label": "Point 1", "default": "Packed fresh" },
+    { "id": "perk_1", "type": "text", "label": "Point 1", "default": "Fresh every day" },
     { "id": "perk_2", "type": "text", "label": "Point 2", "default": "Pick up or delivery" },
     { "id": "perk_3", "type": "text", "label": "Point 3", "default": "QRIS, e-wallet or transfer" },
 
