@@ -1,9 +1,9 @@
 // Customer storefront: store picker → menu → ticket (cart + checkout) → order status.
 (() => {
   const { api, esc, money, $, $$, toast, store: ls, applyTheme } = SO;
-  const S = { slug: null, hostMode: false, info: null, menu: [], cart: {}, cat: null, quote: null, mode: 'delivery', loc: null, tsToken: null, tsWidget: null };
+  const S = { slug: null, hostMode: false, info: null, menu: [], cart: {}, cat: null, quote: null, mode: 'delivery', loc: null, tsToken: null, tsWidget: null, coupon: '', reviews: null };
   const app = $('#app'), sheetRoot = $('#sheet-root');
-  const T = () => (S.hostMode ? {} : { tenant: S.slug });
+  const T = () => ({ ...(S.hostMode ? {} : { tenant: S.slug }), token: (ls.get('b2b.' + S.slug) || {}).token });
   const PM_LABEL = { midtrans: ['Pay online', 'QRIS, e-wallet, virtual account or card'], doku: ['Pay online', 'QRIS, e-wallet, virtual account or card'], manual: ['Bank transfer', 'Transfer, then the store confirms your payment'] };
   const STEPS = [['pending_payment', 'Order placed'], ['paid', 'Payment received'], ['preparing', 'Being prepared'], ['shipped', 'On the way'], ['delivered', 'Delivered']];
 
@@ -40,7 +40,7 @@
   async function enterStore(slug, remember) {
     S.slug = slug;
     const [info, menu] = await Promise.all([S.hostMode && S.info ? S.info : api('GET', '/api/store', undefined, T()), api('GET', '/api/menu', undefined, T())]);
-    S.info = info; S.menu = menu.products; S.quote = null;
+    S.info = info; S.menu = menu.products; S.quote = null; S.reviews = null; S.coupon = '';
     if (remember) ls.set('store', slug);
     S.cart = ls.get('cart.' + slug) || {};
     pruneCart();
@@ -91,7 +91,7 @@
     const out = p.variants.every(v => v.available <= 0), n = inCart(p);
     return `<button class="item${out ? ' out' : ''}" data-id="${esc(p.id)}" ${out ? 'aria-disabled="true"' : ''}>
       <span class="ph">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : esc(p.name.slice(0, 1))}</span>
-      <span class="txt"><b>${esc(p.name)}</b>${p.description ? `<span class="desc">${esc(p.description)}</span>` : ''}<span class="price">${priceOf(p)}</span></span>
+      <span class="txt"><b>${esc(p.name)}</b>${p.description ? `<span class="desc">${esc(p.description)}</span>` : ''}<span class="price">${priceOf(p)}</span>${p.rating ? `<span class="stars" aria-label="${p.rating.avg} out of 5 stars, ${p.rating.count} ratings">★ ${p.rating.avg} <span class="muted">(${p.rating.count})</span></span>` : ''}</span>
       ${n ? `<span class="qty-badge" aria-label="${n} in your order">${n}</span>` : ''}</button>`;
   }
   function watchCats() {
@@ -133,14 +133,20 @@
         <span>${esc(x.name)}${x.available <= 0 ? '<small>Sold out</small>' : x.available <= 5 ? `<small>Only ${x.available} left</small>` : ''}</span><span class="fee">${money(x.price)}</span></label>`).join('')}</div>` : ''}
       <div class="section-title">How many?</div>
       <div class="stepper"><button id="pm" aria-label="Fewer">−</button><output id="pq">1</output><button id="pp" aria-label="More">+</button></div>
-      <button class="btn" id="add"></button>`);
+      <button class="btn" id="add"></button>
+      <div id="p-reviews"></div>`);
     const sync = () => { const a = v().available - (S.cart[sel.id] || 0); sel.qty = Math.max(1, Math.min(sel.qty, Math.max(a, 1))); $('#pq').value = sel.qty; $('#pm').disabled = sel.qty <= 1; $('#pp').disabled = sel.qty >= a; $('#add').disabled = a <= 0; $('#add').textContent = a <= 0 ? 'All available units are in your order' : `Add to order – ${money(v().price * sel.qty)}`; };
     $$('input[name=v]').forEach(r => (r.onchange = () => { sel.id = r.value; sync(); }));
     $('#pm').onclick = () => { sel.qty--; sync(); }; $('#pp').onclick = () => { sel.qty++; sync(); };
     $('.close-x').onclick = close;
     $('#add').onclick = () => { S.cart[sel.id] = (S.cart[sel.id] || 0) + sel.qty; saveCart(); S.quote = null; close(); updateBar(); toast(`Added ${p.name}`); };
     sync();
+    if (p.rating) loadReviews().then(all => {
+      const mine = all.filter(r => r.product_id === p.id).slice(0, 4), box = $('#p-reviews'); if (!box || !mine.length) return;
+      box.innerHTML = `<div class="section-title">What people say</div>` + mine.map(r => `<div class="review"><span class="stars">${'★'.repeat(r.stars)}</span> <b>${esc(r.name)}</b>${r.text ? `<p>${esc(r.text)}</p>` : ''}</div>`).join('');
+    }).catch(() => {});
   }
+  async function loadReviews() { if (!S.reviews) S.reviews = (await api('GET', '/api/reviews', undefined, T())).reviews; return S.reviews; }
 
   // ── the ticket: cart + checkout in one sheet ──
   function openTicket() {
@@ -150,7 +156,10 @@
     const close = openSheet(`
       <button class="close-x" aria-label="Close">×</button>
       <h2>Your order</h2><p class="muted">${esc(S.info.store.name)}</p>
+      ${(ls.get('b2b.' + S.slug) || {}).name ? `<p class="note">Business pricing for ${esc(ls.get('b2b.' + S.slug).name)}</p>` : ''}
       <div class="receipt"><div id="lines"></div><div class="totals" id="totals"></div></div>
+      <div class="field"><label for="c-coupon">Coupon code</label><div class="inline"><input id="c-coupon" autocapitalize="characters" autocomplete="off" maxlength="16" value="${esc(S.coupon)}"><button type="button" class="btn ghost small" id="c-apply">Apply</button></div></div>
+      <div id="c-msg" class="note" aria-live="polite"></div>
       ${S.info.pickup ? `<div class="seg" role="group" aria-label="How do you want it?"><button data-mode="delivery">Delivery</button><button data-mode="pickup">Pick up</button></div>` : ''}
       <div class="section-title">Your details</div>
       <div class="row2"><div class="field"><label for="c-name">Name</label><input id="c-name" autocomplete="name" value="${esc(me.name || '')}"></div>
@@ -174,6 +183,10 @@
     me.loc && (S.loc = me.loc);
     $$('.seg button').forEach(b => (b.onclick = () => { S.mode = b.dataset.mode; S.quote = null; syncMode(); }));
     $('#loc').onclick = locate;
+    $('#c-apply').onclick = () => {
+      S.coupon = $('#c-coupon').value.trim().toUpperCase(); const d = destination();
+      if (S.mode === 'pickup' || (d.address && (S.loc || /^\d{5}$/.test(d.postal_code || '')))) getOptions(); else renderTotals();
+    };
     $('#get-opts').onclick = getOptions;
     ['#c-addr', '#c-zip'].forEach(s => $(s).addEventListener('change', () => { S.quote = null; renderOptions(); }));
     $('#place').onclick = place;
@@ -207,12 +220,17 @@
     renderTotals();
   }
   function renderTotals() {
-    const ship = chosenShip(), sub = cartTotal();
+    const ship = chosenShip(), sub = cartTotal(), pr = S.quote?.pricing || {}, td = pr.tier_discount || 0, cd = pr.coupon_discount || 0, badCoupon = !!(S.coupon && pr.coupon_error);
+    const total = sub - td - cd + (ship?.fee || 0);
     $('#totals').innerHTML = `<div><span>Items</span><span>${money(sub)}</span></div>
+      ${td ? `<div><span>${pr.business ? 'Business discount' : 'Volume discount'}</span><span>−${money(td)}</span></div>` : ''}
+      ${cd ? `<div><span>Coupon ${esc(pr.coupon)}</span><span>−${money(cd)}</span></div>` : ''}
       <div><span>${S.mode === 'pickup' ? 'Pick up' : 'Delivery'}</span><span>${ship ? (ship.fee ? money(ship.fee) : 'Free') : '–'}</span></div>
-      <div class="grand"><span>Total</span><span>${money(sub + (ship?.fee || 0))}</span></div>`;
-    const ok = cartCount() > 0 && ship && S.info.payments.length && (!S.info.turnstile_site_key || S.tsToken);
-    const btn = $('#place'); btn.disabled = !ok; btn.textContent = ship ? `Place order – ${money(sub + ship.fee)}` : 'Place order';
+      <div class="grand"><span>Total</span><span>${money(total)}</span></div>`;
+    const m = $('#c-msg');
+    if (m) { m.className = 'note'; m.textContent = !S.coupon ? '' : !S.quote ? 'Your code is checked when you choose delivery.' : pr.coupon_error ? pr.coupon_error : `${pr.coupon} applied`; if (S.coupon && pr.coupon_error) m.className = 'note bad'; }
+    const ok = cartCount() > 0 && ship && !badCoupon && S.info.payments.length && (!S.info.turnstile_site_key || S.tsToken);
+    const btn = $('#place'); btn.disabled = !ok; btn.textContent = ship ? `Place order – ${money(total)}` : 'Place order';
   }
   const chosenShip = () => { const r = $('input[name=ship]:checked'); return r && S.quote ? S.quote.options.find(o => o.id === r.value) : null; };
   function destination() {
@@ -225,7 +243,7 @@
     if (S.mode === 'delivery' && !S.loc && !/^\d{5}$/.test(d.postal_code || '')) { $('#c-zip').focus(); return toast('Add your postal code or use your location'); }
     $('#opts').innerHTML = '<span class="spinner"></span>';
     try {
-      S.quote = await api('POST', '/api/quote', { items: lines(), destination: d, pickup: S.mode === 'pickup' }, T());
+      S.quote = await api('POST', '/api/quote', { items: lines(), destination: d, pickup: S.mode === 'pickup', coupon: S.coupon || undefined }, T());
       S.quote.options = S.quote.options.filter(o => (o.provider === 'pickup') === (S.mode === 'pickup'));
       renderOptions();
     } catch (e) { S.quote = null; renderOptions(e.message); }
@@ -262,9 +280,9 @@
     const btn = $('#place'); btn.disabled = true; btn.textContent = 'Placing your order…';
     try {
       const r = await api('POST', '/api/checkout', { items: lines(), customer: { name, phone }, destination: d, shipping_id: ship.id,
-        pickup_warehouse_id: S.mode === 'pickup' ? S.quote.warehouse.id : undefined, payment: pay, turnstile: S.tsToken }, T());
+        pickup_warehouse_id: S.mode === 'pickup' ? S.quote.warehouse.id : undefined, payment: pay, turnstile: S.tsToken, coupon: S.coupon || undefined }, T());
       const mine = ls.get('orders') || []; mine.unshift({ no: r.order.no, phone, slug: S.slug, at: Date.now() }); ls.set('orders', mine.slice(0, 30));
-      S.cart = {}; saveCart(); S.quote = null;
+      S.cart = {}; saveCart(); S.quote = null; S.coupon = '';
       if (r.order.payment.url) { location.href = r.order.payment.url; return; }
       document.body.classList.remove('sheet-in'); sheetRoot.innerHTML = '';
       showOrder(r.order.no, phone, r);
@@ -278,7 +296,7 @@
 
   // ── order status ──
   async function showOrder(no, phone, fresh) {
-    history.pushState(null, '', `/order/${no}${S.hostMode ? '' : `?store=${S.slug}`}`);
+    const href = `/order/${no}${S.hostMode ? '' : `?store=${S.slug}`}`; if (location.pathname + location.search !== href) history.pushState(null, '', href);
     window.scrollTo(0, 0);
     app.innerHTML = `<header class="top"><div class="wrap bar"><button class="icon-btn" id="back">‹ Menu</button><h1>Order ${esc(no)}</h1></div></header>
       <main class="wrap status-page" id="st"><span class="spinner"></span></main>`;
@@ -298,10 +316,12 @@
         ${manual && o.status === 'pending_payment' ? `<div class="bank"><div class="muted">Transfer exactly ${money(o.total)} to</div><div class="acct">${esc(manual.account_no || '')}</div><div>${esc(manual.bank || '')}${manual.account_name ? `, ${esc(manual.account_name)}` : ''}</div>${manual.note ? `<p class="note">${esc(manual.note)}</p>` : ''}</div>` : ''}
         ${dead ? '' : `<ol class="steps">${steps.map(([k, l], i) => `<li class="${i <= at ? 'done' : ''}"><b>${esc(l)}</b></li>`).join('')}</ol>`}
         <div class="receipt">${o.items.map(i => `<div class="line"><div><div class="name">${esc(i.label)}</div><div class="each">${i.qty} × ${money(i.price)}</div></div><b>${money(i.price * i.qty)}</b></div>`).join('')}
-          <div class="totals"><div><span>Items</span><span>${money(o.subtotal)}</span></div><div><span>${esc(o.shipping.label)}</span><span>${o.shipping_fee ? money(o.shipping_fee) : 'Free'}</span></div><div class="grand"><span>Total</span><span>${money(o.total)}</span></div></div></div>
+          <div class="totals"><div><span>Items</span><span>${money(o.subtotal)}</span></div>${o.tier_discount ? `<div><span>Discount</span><span>−${money(o.tier_discount)}</span></div>` : ''}${o.coupon_discount ? `<div><span>Coupon ${esc(o.coupon_code)}</span><span>−${money(o.coupon_discount)}</span></div>` : ''}<div><span>${esc(o.shipping.label)}</span><span>${o.shipping_fee ? money(o.shipping_fee) : 'Free'}</span></div><div class="grand"><span>Total</span><span>${money(o.total)}</span></div></div></div>
+        ${feedbackHtml(o)}
         ${S.info.store.whatsapp ? `<a class="btn ghost" href="https://wa.me/${esc(S.info.store.whatsapp)}?text=${encodeURIComponent('Hi, about order ' + o.no)}" target="_blank" rel="noopener">Message the store</a>` : ''}
         <button class="btn ghost" id="refresh">Check status again</button>`;
       $('#refresh').onclick = () => showOrder(no, phone);
+      bindFeedback(o, no, phone);
     } catch (e) { $('#st').innerHTML = `<div class="error-box">${esc(e.message)}</div>`; }
   }
   function askPhone(no) {
@@ -314,12 +334,89 @@
     const close = openSheet(`<button class="close-x" aria-label="Close">×</button><h2>My orders</h2>
       ${mine.length ? `<div class="orders-list">${mine.map(o => `<button class="order-link" data-no="${esc(o.no)}" data-phone="${esc(o.phone)}"><b>${esc(o.no)}</b><span class="muted">${new Date(o.at).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span></button>`).join('')}</div>`
         : '<p class="muted">Orders you place on this phone show up here.</p>'}
+      <div class="section-title">Business account</div>
+      ${(ls.get('b2b.' + S.slug) || {}).name ? `<p>Business pricing is on for <b>${esc(ls.get('b2b.' + S.slug).name)}</b>.</p><button class="btn ghost" id="biz-out">Log out</button>`
+        : `<div class="row2"><div class="field"><label for="bl">Username</label><input id="bl" autocapitalize="none" autocomplete="username"></div><div class="field"><label for="bp">Password</label><input id="bp" type="password" autocomplete="current-password"></div></div><button class="btn ghost" id="biz-in">Log in</button><p class="note">For shops and cafes with a business account from this store.</p>`}
       <div class="section-title">Ordered on another phone?</div>
       <div class="row2"><div class="field"><label for="on">Order number</label><input id="on" autocapitalize="characters"></div><div class="field"><label for="op">WhatsApp number</label><input id="op" inputmode="tel"></div></div>
       <button class="btn ghost" id="lookup">Find order</button>`);
     $('.close-x').onclick = close;
+    if ($('#biz-out')) $('#biz-out').onclick = () => { ls.set('b2b.' + S.slug, null); S.quote = null; close(); toast('Logged out of your business account'); };
+    if ($('#biz-in')) $('#biz-in').onclick = async e => {
+      const btn = e.target; btn.disabled = true;
+      try { const r = await api('POST', '/api/b2b/login', { login: $('#bl').value.trim(), password: $('#bp').value }, T()); ls.set('b2b.' + S.slug, { token: r.token, name: r.account.name }); S.quote = null; close(); toast(`Business pricing on for ${r.account.name}`); }
+      catch (err) { toast(err.message); btn.disabled = false; }
+    };
     $$('.order-link').forEach(b => (b.onclick = () => { close(); showOrder(b.dataset.no, b.dataset.phone); }));
     $('#lookup').onclick = () => { const no = $('#on').value.trim().toUpperCase(); if (no) { close(); showOrder(no, $('#op').value.trim()); } };
+  }
+  // ── reviews and complaints (after delivery) ──
+  const REASONS = ['Damaged item', 'Wrong item', 'Missing item', 'Quality problem', 'Other'];
+  function feedbackHtml(o) {
+    if (o.status !== 'delivered') return '';
+    const seen = o.reviewed || [], todo = o.items.filter(i => i.product_id && !seen.includes(i.product_id)), done = o.items.filter(i => seen.includes(i.product_id));
+    return `<div class="section-title">How was it?</div>
+      ${todo.map(i => `<div class="rate" data-pid="${esc(i.product_id)}"><b>${esc(i.label)}</b>
+        <div class="starpick" role="radiogroup" aria-label="Rating for ${esc(i.label)}">${[1, 2, 3, 4, 5].map(n => `<button type="button" role="radio" aria-checked="false" data-n="${n}" aria-label="${n} star${n > 1 ? 's' : ''}">★</button>`).join('')}</div>
+        <div class="field"><input maxlength="200" placeholder="Say a little about it (optional)" aria-label="Comment on ${esc(i.label)}"></div>
+        <button type="button" class="btn ghost small" data-send>Send rating</button></div>`).join('')}
+      ${done.length ? `<p class="note">Thanks for rating ${done.map(i => esc(i.label)).join(', ')}.</p>` : ''}
+      ${o.complaint ? `<div class="bank"><b>Your report: ${{ open: 'we received it', resolved: 'resolved', rejected: 'closed' }[o.complaint.status]}</b>${o.complaint.note ? `<p class="note">${esc(o.complaint.note)}</p>` : ''}</div>`
+        : o.can_complain ? `<button class="btn ghost" id="report">Report a problem</button><p class="note">You can report a problem until ${new Date(o.complain_until).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.</p>`
+        : '<p class="note">The time to report a problem has ended.</p>'}`;
+  }
+  function bindFeedback(o, no, phone) {
+    $$('.rate').forEach(box => {
+      let stars = 0;
+      $$('.starpick button', box).forEach(b => (b.onclick = () => { stars = +b.dataset.n; $$('.starpick button', box).forEach(x => { x.classList.toggle('on', +x.dataset.n <= stars); x.setAttribute('aria-checked', String(+x.dataset.n === stars)); }); }));
+      $('[data-send]', box).onclick = async e => {
+        if (!stars) return toast('Tap the stars first');
+        const btn = e.target; btn.disabled = true;
+        try { await api('POST', '/api/review', { no, phone, product_id: box.dataset.pid, stars, text: $('input', box).value.trim() }, T()); toast('Thanks for your rating'); S.reviews = null; showOrder(no, phone); }
+        catch (err) { toast(err.message); btn.disabled = false; }
+      };
+    });
+    if ($('#report')) $('#report').onclick = () => reportSheet(o, no, phone);
+  }
+  // photos are shrunk on the phone so they upload fast (the server accepts up to ~250 KB each)
+  async function shrink(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("We can't read that photo. Try another one.")); i.src = url; });
+      let max = 1000, q = 0.72;
+      for (let n = 0; n < 6; n++) {
+        const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const out = c.toDataURL('image/jpeg', q); if (out.length <= 250000) return out;
+        max *= 0.8; q = Math.max(0.4, q - 0.08);
+      }
+      throw new Error('That photo is too large. Try another one.');
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function reportSheet(o, no, phone) {
+    let imgs = [];
+    const close = openSheet(`<button class="close-x" aria-label="Close">×</button><h2>Report a problem</h2><p class="muted">Order ${esc(no)}</p>
+      <div class="field"><label for="r-reason">What went wrong?</label><select id="r-reason">${REASONS.map(r => `<option>${r}</option>`).join('')}</select></div>
+      <div class="field"><label for="r-item">Which item?</label><select id="r-item"><option value="">The whole order</option>${o.items.map(i => `<option>${esc(i.label)}</option>`).join('')}</select></div>
+      <div class="field"><label for="r-text">Tell us what happened</label><textarea id="r-text" rows="3" maxlength="400"></textarea></div>
+      <div class="field"><label for="r-photos">Photos, 1 to 3</label><input id="r-photos" type="file" accept="image/*" multiple></div>
+      <div id="r-prev" class="note"></div><div id="r-err"></div>
+      <button class="btn" id="r-send">Send report</button>`);
+    $('.close-x').onclick = close;
+    $('#r-photos').onchange = async e => {
+      imgs = []; $('#r-prev').textContent = 'Preparing photos…';
+      try { for (const f of [...e.target.files].slice(0, 3)) imgs.push(await shrink(f)); $('#r-prev').textContent = `${imgs.length} photo${imgs.length === 1 ? '' : 's'} ready`; }
+      catch (err) { imgs = []; $('#r-prev').textContent = ''; $('#r-err').innerHTML = `<div class="error-box">${esc(err.message)}</div>`; }
+    };
+    $('#r-send').onclick = async e => {
+      $('#r-err').innerHTML = ''; const btn = e.target;
+      if ($('#r-text').value.trim().length < 5) return ($('#r-err').innerHTML = '<div class="error-box">Describe the problem in a few words.</div>');
+      if (!imgs.length) return ($('#r-err').innerHTML = '<div class="error-box">Add at least one photo.</div>');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try { await api('POST', '/api/complaint', { no, phone, reason: $('#r-reason').value, item: $('#r-item').value, text: $('#r-text').value.trim(), imgs }, T()); close(); toast('Report sent. The store will get back to you.'); showOrder(no, phone); }
+      catch (err) { $('#r-err').innerHTML = `<div class="error-box">${esc(err.message)}</div>`; btn.disabled = false; btn.textContent = 'Send report'; }
+    };
   }
   window.addEventListener('popstate', () => { if (S.info && !location.pathname.startsWith('/order/')) renderShop(); });
   boot();

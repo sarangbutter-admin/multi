@@ -1,4 +1,5 @@
 // Local dev server with an in-memory database and demo data: npm run dev → http://localhost:8888
+//   demo coupon WELCOME10, business login cafe.biru / demo-password-1 (store: sarang)
 //   shop:        http://localhost:8888/?store=sarang
 //   back office: http://localhost:8888/admin   (owner: owner@sarang.test / demo-password-1, platform admin: admin@demo.test / demo-admin-pass)
 import http from 'node:http';
@@ -16,7 +17,7 @@ const app = makeApp({ db, env: { SESSION_SECRET: 'dev-session-secret-0123456789a
 async function seed() {
   await db.insert('users', { tenant_id: null, email: 'admin@demo.test', role: 'super', cred: await mkCred('demo-admin-pass') });
   const mk = async (slug, name, theme, about) => {
-    const t = await db.insert('tenants', { slug, name, status: 'active', theme, settings: { payments: ['manual'], pickup: true, pay_minutes: 60, about, whatsapp: '6281200000000', manual: { bank: 'BCA', account_no: '1234567890', account_name: name } } });
+    const t = await db.insert('tenants', { slug, name, status: 'active', theme, settings: { payments: ['manual'], pickup: true, pay_minutes: 60, about, whatsapp: '6281200000000', tiers: { regular: { qty: 10, amt: 0, pct: 5 }, b2b: { qty: 1, amt: 0, pct: 15 } }, manual: { bank: 'BCA', account_no: '1234567890', account_name: name } } });
     await db.insert('users', { tenant_id: t.id, email: `owner@${slug}.test`, name: 'Owner', role: 'owner', cred: await mkCred('demo-password-1') });
     return t;
   };
@@ -39,6 +40,9 @@ async function seed() {
     const v = await db.insert('variants', { tenant_id: kopi.id, product_id: p.id, name, price, weight_g: 250 });
     await db.insert('stock', { tenant_id: kopi.id, warehouse_id: wk.id, variant_id: v.id, qty: 30, reserved: 0 });
   }
+  await db.insert('coupons', { tenant_id: sarang.id, code: 'WELCOME10', type: 'pct', value: 10, min_purchase: 50000, max_uses: 100 });
+  await db.insert('coupons', { tenant_id: sarang.id, code: 'FIVEK', type: 'amt', value: 5000 });
+  await db.insert('b2b_accounts', { tenant_id: sarang.id, name: 'Cafe Biru', phone: '0811000111', login: 'cafe.biru', cred: await mkCred('demo-password-1') });
   await db.insert('courier_zones', { tenant_id: sarang.id, name: 'Nearby', max_km: 8, fee: 12000, eta: '45–90 minutes' });
   await db.insert('courier_zones', { tenant_id: sarang.id, name: 'City', max_km: 25, fee: 25000, eta: 'Same day' });
 }

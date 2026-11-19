@@ -239,3 +239,153 @@ test('menu shows availability summed over warehouses; order status flow is enfor
   assert.equal((await h.call('PATCH', `/api/admin/orders/${no}`, { ...S.o, body: { status: 'cancelled' } })).status, 200);
   assert.equal((await h.db.one('stock', { warehouse_id: S.jkt.id, variant_id: S.v.id })).reserved, 0);
 });
+
+// ───────────────────────── discounts, business accounts, reviews, complaints ─────────────────────────
+async function placePickup(h, S, { qty = 1, coupon, token, payment = 'manual' } = {}) {
+  return h.call('POST', '/api/checkout', { tenant: 'butter', token, body: { items: [{ variant_id: S.v.id, qty }], customer, shipping_id: 'pickup', pickup_warehouse_id: S.bdg.id, payment, coupon } });
+}
+async function deliver(h, S, no) {
+  await h.call('POST', `/api/admin/orders/${no}/confirm-payment`, S.o);
+  for (const status of ['preparing', 'shipped', 'delivered']) assert.equal((await h.call('PATCH', `/api/admin/orders/${no}`, { ...S.o, body: { status } })).status, 200);
+}
+const createCoupon = (h, S, body) => h.call('POST', '/api/admin/coupons', { ...S.o, body });
+const couponRow = (h, code) => h.db.one('coupons', { code });
+
+test('coupons: percent and fixed, minimum spend, expiry, single-use, released when an unpaid order is cancelled', async () => {
+  const h = setup(); const S = await liveStore(h);
+  assert.equal((await createCoupon(h, S, { code: 'bad code!', type: 'pct', value: 10 })).body.error, 'bad_code');
+  assert.equal((await createCoupon(h, S, { code: 'SAVE10', type: 'pct', value: 10, min_purchase: 80000, max_uses: 1 })).status, 200);
+  assert.equal((await createCoupon(h, S, { code: 'save10', type: 'pct', value: 5 })).body.error, 'exists', 'codes are case-insensitive');
+  await createCoupon(h, S, { code: 'OLD', type: 'amt', value: 5000, expires_at: '2026-01-01T00:00:00Z' });
+  await createCoupon(h, S, { code: 'FIVE', type: 'amt', value: 5000 });
+
+  const quote = (coupon, qty = 2) => h.call('POST', '/api/quote', { tenant: 'butter', body: { items: [{ variant_id: S.v.id, qty }], pickup: true, pickup_warehouse_id: S.bdg.id, coupon } });
+  assert.equal((await quote('SAVE10', 1)).body.pricing.coupon_error, 'Minimum purchase IDR 80,000 for this coupon.');
+  assert.equal((await quote('NOPE')).body.pricing.coupon_error, 'Sorry, that code is not valid.');
+  assert.equal((await quote('OLD')).body.pricing.coupon_error, 'This coupon has expired.');
+  const ok = (await quote('save10')).body.pricing; assert.deepEqual([ok.coupon, ok.coupon_discount], ['SAVE10', 10000]);
+  assert.equal((await quote('FIVE')).body.pricing.coupon_discount, 5000);
+
+  assert.equal((await placePickup(h, S, { qty: 2, coupon: 'NOPE' })).body.error, 'coupon', 'checkout refuses a bad code');
+  const a = await placePickup(h, S, { qty: 2, coupon: 'SAVE10' });
+  assert.equal(a.body.order.total, 90000); assert.equal(a.body.order.coupon_discount, 10000);
+  assert.equal((await couponRow(h, 'SAVE10')).used, 1);
+  const b = await placePickup(h, S, { qty: 2, coupon: 'SAVE10' });
+  assert.equal(b.body.error, 'coupon'); assert.match(b.body.message, /fully redeemed/);
+  const stock = await h.db.one('stock', { warehouse_id: S.bdg.id, variant_id: S.v.id });
+  assert.equal(stock.reserved, 2, 'the refused order must not keep stock reserved');
+  // cancelling the unpaid order gives the use back
+  await h.call('PATCH', `/api/admin/orders/${a.body.order.no}`, { ...S.o, body: { status: 'cancelled' } });
+  assert.equal((await couponRow(h, 'SAVE10')).used, 0);
+  assert.equal((await placePickup(h, S, { qty: 2, coupon: 'SAVE10' })).status, 200);
+  // a fixed coupon can never push the price below zero
+  await createCoupon(h, S, { code: 'HUGE', type: 'amt', value: 9999999 });
+  assert.equal((await placePickup(h, S, { qty: 1, coupon: 'HUGE' })).body.order.total, 0);
+});
+
+test('volume discount and business accounts', async () => {
+  const h = setup(); const S = await liveStore(h);
+  await h.call('PUT', '/api/admin/settings', { ...S.o, body: { tiers: { regular: { qty: 3, amt: 0, pct: 10 }, b2b: { qty: 1, amt: 0, pct: 20 } } } });
+  assert.equal((await h.call('PUT', '/api/admin/settings', { ...S.o, body: { tiers: { regular: { qty: 3, amt: 0, pct: 90 } } } })).body.error, 'bad_settings');
+  assert.equal((await placePickup(h, S, { qty: 2 })).body.order.total, 100000, 'below the minimum: no discount');
+  const three = await placePickup(h, S, { qty: 3 }); assert.equal(three.body.order.tier_discount, 15000); assert.equal(three.body.order.total, 135000);
+
+  const acct = await h.call('POST', '/api/admin/b2b', { ...S.o, body: { name: 'Cafe Biru', login: 'cafe.biru', password: 'password-123', phone: '0811' } });
+  assert.equal(acct.status, 200); assert.ok(!('cred' in acct.body.row), 'password hash never leaves the server');
+  assert.equal((await h.call('POST', '/api/admin/b2b', { ...S.o, body: { name: 'X', login: 'CAFE.BIRU', password: 'password-123' } })).body.error, 'exists');
+  assert.equal((await h.call('POST', '/api/b2b/login', { tenant: 'butter', body: { login: 'cafe.biru', password: 'wrong-password' } })).status, 401);
+  const login = await h.call('POST', '/api/b2b/login', { tenant: 'butter', body: { login: 'Cafe.Biru', password: 'password-123' } });
+  assert.equal(login.status, 200);
+  const tok = login.body.token;
+  const biz = await placePickup(h, S, { qty: 1, token: tok });
+  assert.equal(biz.body.order.tier_discount, 10000, '20% business tier even for one item');
+  assert.equal((await h.call('GET', '/api/me', { tenant: 'butter', token: tok })).body.business, 'Cafe Biru');
+  // a business login is not staff
+  assert.equal((await h.call('GET', '/api/admin/orders', { tenant: 'butter', token: tok })).status, 401);
+  // it only counts in the store that issued it
+  const B = await liveStore(h, 'other');
+  await h.call('PUT', '/api/admin/settings', { ...B.o, body: { tiers: { b2b: { qty: 1, amt: 0, pct: 20 } } } });
+  const q = await h.call('POST', '/api/quote', { tenant: 'other', token: tok, body: { items: [{ variant_id: B.v.id, qty: 1 }], pickup: true, pickup_warehouse_id: B.bdg.id } });
+  assert.equal(q.body.pricing.tier_discount, 0);
+  // switching the account off ends business pricing at once
+  await h.call('PATCH', `/api/admin/b2b/${acct.body.row.id}`, { ...S.o, body: { active: false } });
+  assert.equal((await placePickup(h, S, { qty: 1, token: tok })).body.order.tier_discount, 0);
+  assert.equal((await h.call('POST', '/api/b2b/login', { tenant: 'butter', body: { login: 'cafe.biru', password: 'password-123' } })).status, 401);
+  // staff cannot manage business accounts
+  await h.call('POST', '/api/admin/staff', { ...S.o, body: { email: 'st@b.test', password: 'password-123' } });
+  const st = await h.call('POST', '/api/login', { tenant: 'butter', body: { email: 'st@b.test', password: 'password-123' } });
+  assert.equal((await h.call('GET', '/api/admin/b2b', { tenant: 'butter', token: st.body.token })).status, 401);
+});
+
+test('discounted orders send the gateway one line that equals the charged amount', async () => {
+  const h = setup(); const S = await liveStore(h);
+  await h.call('PUT', '/api/admin/secrets/midtrans', { ...S.o, body: { serverKey: 'srv-key' } });
+  await h.call('PUT', '/api/admin/settings', { ...S.o, body: { payments: ['midtrans'] } });
+  await createCoupon(h, S, { code: 'TEN', type: 'pct', value: 10 });
+  const plain = await placePickup(h, S, { qty: 2, payment: 'midtrans' });
+  const body1 = JSON.parse(h.calls.at(-1).init.body); assert.equal(body1.item_details.length, 1, 'one item line + no shipping for pickup');
+  const disc = await placePickup(h, S, { qty: 2, payment: 'midtrans', coupon: 'TEN' });
+  const body2 = JSON.parse(h.calls.at(-1).init.body);
+  assert.equal(body2.transaction_details.gross_amount, 90000);
+  assert.equal(body2.item_details.reduce((n, i) => n + i.price * i.quantity, 0), 90000);
+  assert.ok(plain.status === 200 && disc.status === 200);
+  // paying the discounted order: the webhook must carry the discounted amount
+  const no = disc.body.order.no, sig = (amt) => crypto.createHash('sha512').update(no + '200' + amt + 'srv-key').digest('hex');
+  const wrong = await h.call('POST', '/api/webhook/midtrans/butter', { body: { order_id: no, status_code: '200', gross_amount: '100000', transaction_status: 'settlement', signature_key: sig('100000') } });
+  assert.match(wrong.body.note, /amount mismatch/);
+  const right = await h.call('POST', '/api/webhook/midtrans/butter', { body: { order_id: no, status_code: '200', gross_amount: '90000', transaction_status: 'settlement', signature_key: sig('90000') } });
+  assert.equal(right.body.result, 'paid');
+});
+
+test('reviews: only after delivery, once per item, shown with an average on the menu', async () => {
+  const h = setup(); const S = await liveStore(h);
+  const o = (await placePickup(h, S, { qty: 1 })).body.order, review = body => h.call('POST', '/api/review', { tenant: 'butter', body: { no: o.no, phone: '0812-3456-7890', product_id: S.p.id, ...body } });
+  assert.equal((await review({ stars: 5 })).body.error, 'not_delivered');
+  await deliver(h, S, o.no);
+  assert.equal((await review({ stars: 7 })).body.error, 'bad_stars');
+  assert.equal((await review({ stars: 4, product_id: 'nope' })).body.error, 'bad_item');
+  assert.equal((await h.call('POST', '/api/review', { tenant: 'butter', body: { no: o.no, phone: '0899999999', product_id: S.p.id, stars: 5 } })).status, 404, 'wrong phone');
+  assert.equal((await review({ stars: 5, text: 'Soft and buttery' })).status, 200);
+  assert.equal((await review({ stars: 1 })).body.error, 'exists');
+  const second = (await placePickup(h, S, { qty: 1 })).body.order; await deliver(h, S, second.no);
+  await h.call('POST', '/api/review', { tenant: 'butter', body: { no: second.no, phone: '081234567890', product_id: S.p.id, stars: 4 } });
+  const menu = (await h.call('GET', '/api/menu', { tenant: 'butter' })).body.products[0];
+  assert.deepEqual(menu.rating, { avg: 4.5, count: 2 });
+  const list = (await h.call('GET', '/api/reviews', { tenant: 'butter' })).body.reviews;
+  assert.equal(list.length, 2); assert.equal(list.find(r => r.text).name, 'Ana');
+  const look = (await h.call('GET', `/api/order?no=${o.no}&phone=081234567890`, { tenant: 'butter' })).body.order;
+  assert.deepEqual(look.reviewed, [S.p.id]);
+  // the store can remove a review
+  const rows = (await h.call('GET', '/api/admin/reviews', S.o)).body.rows;
+  assert.equal((await h.call('DELETE', `/api/admin/reviews/${rows[0].id}`, S.o)).status, 200);
+  assert.equal((await h.call('GET', '/api/menu', { tenant: 'butter' })).body.products[0].rating.count, 1);
+});
+
+test('complaints: delivered orders only, photos required, one per order, closes after the window', async () => {
+  const h = setup(); const S = await liveStore(h);
+  const IMG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==';
+  const o = (await placePickup(h, S, { qty: 1 })).body.order;
+  const complain = (body, no = o.no) => h.call('POST', '/api/complaint', { tenant: 'butter', body: { no, phone: '081234567890', reason: 'Damaged item', text: 'The box arrived crushed', imgs: [IMG], ...body } });
+  assert.equal((await complain({})).body.error, 'not_delivered');
+  await deliver(h, S, o.no);
+  const view = (await h.call('GET', `/api/order?no=${o.no}&phone=081234567890`, { tenant: 'butter' })).body.order;
+  assert.equal(view.can_complain, true);
+  assert.equal((await complain({ imgs: [] })).body.error, 'bad_img');
+  assert.equal((await complain({ imgs: ['http://evil.test/x.png'] })).body.error, 'bad_img');
+  assert.equal((await complain({ imgs: ['data:image/svg+xml;base64,PHN2Zz4='] })).body.error, 'bad_img', 'only jpeg or webp');
+  assert.equal((await complain({ text: 'bad' })).body.error, 'bad_text');
+  assert.equal((await complain({})).status, 200);
+  assert.equal((await complain({})).body.error, 'exists');
+  assert.equal((await h.call('GET', `/api/order?no=${o.no}&phone=081234567890`, { tenant: 'butter' })).body.order.complaint.status, 'open');
+  const list = (await h.call('GET', '/api/admin/complaints', S.o)).body.rows; assert.equal(list[0].reason, 'Damaged item');
+  assert.deepEqual((await h.call('GET', `/api/admin/complaints/${o.no}/images`, S.o)).body.images, [IMG]);
+  assert.equal((await h.call('PATCH', `/api/admin/complaints/${o.no}`, { ...S.o, body: { status: 'resolved', note: 'Refunded' } })).body.row.status, 'resolved');
+  // another store can't read it
+  const B = await liveStore(h, 'other');
+  assert.equal((await h.call('GET', `/api/admin/complaints/${o.no}/images`, B.o)).status, 404);
+  // the window closes (48 hours by default)
+  const late = (await placePickup(h, S, { qty: 1 })).body.order; await deliver(h, S, late.no);
+  h.tick(49 * 3600000);
+  assert.equal((await complain({}, late.no)).body.error, 'closed');
+  assert.equal((await h.call('GET', `/api/order?no=${late.no}&phone=081234567890`, { tenant: 'butter' })).body.order.can_complain, false);
+});

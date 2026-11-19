@@ -93,7 +93,7 @@
   }
 
   // ── shell ──
-  const TABS = [['orders', 'Orders'], ['products', 'Products'], ['stock', 'Stock'], ['warehouses', 'Warehouses', 1], ['delivery', 'Delivery', 1], ['look', 'Look', 1], ['payments', 'Payments', 1], ['settings', 'Settings', 1], ['staff', 'Staff', 1]];
+  const TABS = [['orders', 'Orders'], ['products', 'Products'], ['stock', 'Stock'], ['feedback', 'Feedback'], ['warehouses', 'Warehouses', 1], ['delivery', 'Delivery', 1], ['discounts', 'Discounts', 1], ['customers', 'Business', 1], ['look', 'Look', 1], ['payments', 'Payments', 1], ['settings', 'Settings', 1], ['staff', 'Staff', 1]];
   async function start() {
     if (!A.auth) return showLogin();
     app.innerHTML = '<div class="boot"><span class="spinner"></span></div>';
@@ -107,12 +107,13 @@
     const owner = A.auth.role === 'owner', tabs = TABS.filter(t => owner || !t[2]);
     if (!tabs.some(t => t[0] === A.tab)) A.tab = 'orders';
     app.innerHTML = `<header class="top"><div class="row"><h1>${esc(A.store.name)}</h1><span class="pill ${A.store.status}">${{ active: 'Open', pending: 'Waiting for approval', suspended: 'Suspended' }[A.store.status]}</span><button class="out" id="out">Log out</button></div>
-      <nav class="tabs" aria-label="Sections">${tabs.map(([id, l]) => `<button data-tab="${id}">${l}${id === 'orders' ? '<span class="count" id="todo-count" hidden></span>' : ''}</button>`).join('')}</nav></header>
+      <nav class="tabs" aria-label="Sections">${tabs.map(([id, l]) => `<button data-tab="${id}">${l}${id === 'orders' ? '<span class="count" id="todo-count" hidden></span>' : ''}${id === 'feedback' ? '<span class="count" id="fb-count" hidden></span>' : ''}</button>`).join('')}</nav></header>
       <main id="main"></main>`;
     $('#out').onclick = () => logout();
     $$('.tabs button').forEach(b => (b.onclick = () => go(b.dataset.tab)));
-    go(A.tab);
+    go(A.tab); badges();
   }
+  async function badges() { try { const n = (await call('GET', '/api/admin/complaints')).rows.filter(r => r.status === 'open').length, b = $('#fb-count'); if (b) { b.hidden = !n; b.textContent = n; } } catch {} }
   function go(tab) {
     A.tab = tab; ls.set('admin.tab', tab); clearInterval(A.timer);
     $$('.tabs button').forEach(b => b.toggleAttribute('aria-current', b.dataset.tab === tab) || b.dataset.tab === tab && b.setAttribute('aria-current', 'page'));
@@ -152,6 +153,7 @@
       <div class="meta"><span>${t.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         <span>${esc(o.customer.name)}, <a href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">${esc(o.customer.phone)}</a></span></div>
       <ul>${o.items.map(i => `<li><span>${i.qty} × ${esc(i.label)}</span><span>${money(i.price * i.qty)}</span></li>`).join('')}
+        ${o.tier_discount ? `<li><span>Discount${o.b2b_id ? ' (business)' : ''}</span><span>−${money(o.tier_discount)}</span></li>` : ''}${o.coupon_discount ? `<li><span>Coupon ${esc(o.coupon_code)}</span><span>−${money(o.coupon_discount)}</span></li>` : ''}
         <li><span>${esc(o.shipping.label)}</span><span>${o.shipping_fee ? money(o.shipping_fee) : 'Free'}</span></li>
         <li class="total"><span>Total, ${PAY_LABEL[o.payment.provider]}</span><span>${money(o.total)}</span></li></ul>
       <div class="meta"><span>From ${esc(wh[o.warehouse_id] || 'a removed warehouse')}</span>
@@ -377,6 +379,85 @@
     $$('[data-rs]').forEach(b => (b.onclick = async () => { if (confirm('Remove this staff account?')) { await call('DELETE', `/api/admin/staff/${b.dataset.rs}`); staffView(); } }));
   }
 
+
+  // ── discounts: coupons + volume tiers ──
+  async function discountsView() {
+    const { rows } = await call('GET', '/api/admin/coupons'), t = A.store.settings.tiers || {};
+    const tier = (k, title, hint, d) => { const v = { qty: d.qty, amt: 0, pct: 0, ...(t[k] || {}) }; return `<form class="panel" data-tier="${k}"><h3>${title}</h3><p class="muted small" style="margin:2px 0 0">${hint}</p>
+      <div class="cols">${field('Discount %', 'pct', v.pct, { type: 'number', attrs: 'min="0" max="50" step="1"', hint: '0 turns it off' })}${field('Minimum items', 'qty', v.qty, { type: 'number', attrs: 'min="1" step="1"' })}${field('Minimum spend', 'amt', v.amt, { type: 'number', attrs: 'min="0" step="1"' })}</div>
+      <div class="actions"><button class="btn">Save</button></div></form>`; };
+    const state = c => c.active === false ? ['Off', ''] : c.expires_at && new Date(c.expires_at) < new Date() ? ['Expired', 'expired'] : c.max_uses > 0 && c.used >= c.max_uses ? ['Used up', 'expired'] : ['Active', 'on'];
+    view(`<div class="head"><div><h2>Discounts</h2><p class="muted">Coupon codes customers type at checkout, and automatic discounts for bigger orders.</p></div><button class="btn" id="add-c">Add coupon</button></div>
+      ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Code</th><th>Discount</th><th>Rules</th><th class="num">Used</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(c => { const [lbl, cls] = state(c); return `<tr>
+        <td><b>${esc(c.code)}</b></td><td>${c.type === 'pct' ? c.value + '% off' : money(c.value) + ' off'}</td>
+        <td class="muted small">${c.min_purchase ? `Spend ${money(c.min_purchase)}+` : 'No minimum'}${c.expires_at ? `, until ${new Date(c.expires_at).toLocaleDateString()}` : ''}</td>
+        <td class="num">${c.used}${c.max_uses ? ` / ${c.max_uses}` : ''}</td><td><span class="pill ${cls}">${lbl}</span></td><td><button class="btn sec" data-ec="${c.id}">Edit</button></td></tr>`; }).join('')}</tbody></table></div>`
+        : '<div class="empty">No coupons yet. Add one to run a promotion.</div>'}
+      <div class="head" style="margin-top:22px"><div><h3 style="margin:0;font-size:18px">Automatic discounts</h3><p class="muted">Applied before any coupon. Leave at 0% to keep them off.</p></div></div>
+      <div class="grid2">${tier('regular', 'Everyone', 'For example 5% off when someone orders 10 or more items.', { qty: 10 })}${tier('b2b', 'Business accounts', 'Better prices for customers with a business login.', { qty: 1 })}</div>`);
+    $('#add-c').onclick = () => couponDialog();
+    $$('[data-ec]').forEach(b => (b.onclick = () => couponDialog(rows.find(x => x.id === b.dataset.ec))));
+    $$('[data-tier]').forEach(f => bindForm(f, async v => {
+      A.store.settings = (await call('PUT', '/api/admin/settings', { tiers: { [f.dataset.tier]: { pct: v.pct ?? 0, qty: v.qty ?? 1, amt: v.amt ?? 0 } } })).settings;
+    }, 'Saved'));
+  }
+  function couponDialog(c = { type: 'pct', active: true }) {
+    dialog(c.id ? 'Edit coupon' : 'Add coupon', `
+      ${field('Code', 'code', c.code, { attrs: 'required maxlength="16" autocapitalize="characters" style="text-transform:uppercase"', hint: 'letters and numbers, what customers type' })}
+      <div class="cols">${field('Type', 'type', c.type, { type: 'select', options: [['pct', 'Percent off'], ['amt', 'Amount off']] })}${field('How much', 'value', c.value, { type: 'number', attrs: 'required min="1" step="1"' })}</div>
+      <div class="cols">${field('Minimum spend', 'min_purchase', c.min_purchase || 0, { type: 'number', attrs: 'min="0" step="1"' })}${field('Uses allowed', 'max_uses', c.max_uses || 0, { type: 'number', attrs: 'min="0" step="1"', hint: '0 means unlimited' })}</div>
+      ${field('Last day', 'expires_at', c.expires_at ? c.expires_at.slice(0, 10) : '', { type: 'date', hint: 'optional' })}
+      ${field('Accepting this code', 'active', c.active !== false, { type: 'checkbox' })}`,
+      async v => {
+        v.expires_at = v.expires_at ? new Date(v.expires_at + 'T23:59:59').toISOString() : null;
+        if (c.id) await call('PATCH', `/api/admin/coupons/${c.id}`, v); else await call('POST', '/api/admin/coupons', v);
+        toast('Coupon saved'); discountsView();
+      }, { danger: c.id && { label: 'Delete', confirm: `Delete coupon ${c.code}? Past orders keep their discount.`, fn: async () => { await call('DELETE', `/api/admin/coupons/${c.id}`); discountsView(); } } });
+  }
+
+  // ── business accounts ──
+  async function customersView() {
+    const { rows } = await call('GET', '/api/admin/b2b');
+    view(`<div class="head"><div><h2>Business accounts</h2><p class="muted">Shops and cafes that order from you. They log in on the app (My orders, Business account) to get your business discount.</p></div><button class="btn" id="add-b">Add business</button></div>
+      ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Business</th><th>Username</th><th>Phone</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(a => `<tr class="${a.active ? '' : 'off'}">
+        <td><b>${esc(a.name)}</b></td><td>${esc(a.login)}</td><td>${esc(a.phone || '')}</td><td><span class="pill ${a.active ? 'on' : ''}">${a.active ? 'Active' : 'Off'}</span></td><td><button class="btn sec" data-eb="${a.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="empty">No business accounts yet. Set the business discount under Discounts, then add your first one.</div>'}`);
+    $('#add-b').onclick = () => dialog('Add business', `${field('Business name', 'name', '', { attrs: 'required' })}${field('Phone', 'phone', '', { attrs: 'inputmode="tel"' })}
+      ${field('Username', 'login', '', { attrs: 'required pattern="[a-z0-9_.]{3,20}" autocapitalize="none"', hint: '3–20 letters, numbers, . or _' })}${field('Password', 'password', '', { type: 'password', attrs: 'required minlength="10" autocomplete="new-password"', hint: '10+ characters, share it privately' })}`,
+      async v => { await call('POST', '/api/admin/b2b', v); toast('Business added'); customersView(); }, { submit: 'Add business' });
+    $$('[data-eb]').forEach(b => (b.onclick = () => { const a = rows.find(x => x.id === b.dataset.eb);
+      dialog('Edit business', `${field('Business name', 'name', a.name, { attrs: 'required' })}${field('Phone', 'phone', a.phone, { attrs: 'inputmode="tel"' })}
+        <p class="muted small">Username: <b>${esc(a.login)}</b></p>${field('New password', 'password', '', { type: 'password', attrs: 'minlength="10" autocomplete="new-password"', hint: 'leave empty to keep the current one' })}
+        ${field('Can log in', 'active', a.active, { type: 'checkbox' })}`,
+        async v => { if (!v.password) delete v.password; await call('PATCH', `/api/admin/b2b/${a.id}`, v); toast('Saved'); customersView(); },
+        { danger: { label: 'Delete', confirm: `Delete ${a.name}? They can no longer log in.`, fn: async () => { await call('DELETE', `/api/admin/b2b/${a.id}`); customersView(); } } }); }));
+  }
+
+  // ── feedback: complaints and reviews ──
+  async function feedbackView() {
+    const [cm, rv] = await Promise.all([call('GET', '/api/admin/complaints'), call('GET', '/api/admin/reviews')]);
+    const open = cm.rows.filter(r => r.status === 'open').length, b = $('#fb-count'); if (b) { b.hidden = !open; b.textContent = open; }
+    const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+    view(`<div class="head"><div><h2>Feedback</h2><p class="muted">${open ? `${open} problem report${open === 1 ? '' : 's'} waiting for you` : 'No open problem reports'}.</p></div></div>
+      ${cm.rows.length ? `<div class="orders">${cm.rows.map(r => `<article class="order ${r.status === 'open' ? 'attn' : ''}"><div class="r1"><span class="no">${esc(r.order_no)}</span><span class="pill ${r.status === 'open' ? 'pending' : r.status === 'resolved' ? 'on' : 'cancelled'}">${{ open: 'Open', resolved: 'Resolved', rejected: 'Closed' }[r.status]}</span></div>
+        <div class="meta"><span>${esc(r.reason)}${r.item ? `, ${esc(r.item)}` : ''}</span><span>${esc(r.name)}, <a href="https://wa.me/${esc(r.phone.replace(/^0/, '62'))}" target="_blank" rel="noopener">${esc(r.phone)}</a></span></div>
+        <p style="margin:8px 0">${esc(r.text)}</p><div class="photos" data-ph="${esc(r.order_no)}"></div>${r.note ? `<p class="muted small">Your note: ${esc(r.note)}</p>` : ''}
+        <div class="actions"><button class="btn sec" data-photos="${esc(r.order_no)}">View ${r.nimg} photo${r.nimg === 1 ? '' : 's'}</button><button class="btn" data-handle="${esc(r.order_no)}">Update status</button></div></article>`).join('')}</div>`
+        : '<div class="empty">No problem reports. Customers can send one after an order is delivered.</div>'}
+      <div class="head" style="margin-top:22px"><h2 style="font-size:18px">Reviews</h2></div>
+      ${rv.rows.length ? `<div class="table-wrap"><table><thead><tr><th>Item</th><th>Rating</th><th>Comment</th><th>From</th><th></th></tr></thead><tbody>${rv.rows.map(r => `<tr><td>${esc(r.product_name)}</td><td style="color:#C98900;white-space:nowrap" aria-label="${r.stars} of 5">${stars(r.stars)}</td><td>${esc(r.text)}</td><td>${esc(r.name)}<div class="muted small">${esc(r.order_no)}</div></td><td><button class="linkish" data-dr="${r.id}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="empty">No reviews yet. Customers can rate items once their order is delivered.</div>'}`);
+    $$('[data-photos]').forEach(b => (b.onclick = async () => {
+      busy(b, true, 'Loading…');
+      try { const { images } = await call('GET', `/api/admin/complaints/${b.dataset.photos}/images`); $(`[data-ph="${b.dataset.photos}"]`).innerHTML = images.map(i => `<a href="${i}" target="_blank" rel="noopener"><img src="${i}" alt="Customer photo" style="width:96px;height:96px;object-fit:cover;border-radius:8px;margin:0 6px 6px 0"></a>`).join(''); b.remove(); }
+      catch (e) { toast(e.message, 'bad'); busy(b, false); }
+    }));
+    $$('[data-handle]').forEach(b => (b.onclick = () => { const r = cm.rows.find(x => x.order_no === b.dataset.handle);
+      dialog(`Report on ${r.order_no}`, `${field('Status', 'status', r.status, { type: 'select', options: [['open', 'Open'], ['resolved', 'Resolved'], ['rejected', 'Closed without action']] })}${field('Note for the customer', 'note', r.note, { type: 'textarea', hint: 'they see this on their order page' })}`,
+        async v => { await call('PATCH', `/api/admin/complaints/${r.order_no}`, v); toast('Saved'); feedbackView(); }); }));
+    $$('[data-dr]').forEach(b => (b.onclick = async () => { if (confirm('Remove this review?')) { await call('DELETE', `/api/admin/reviews/${b.dataset.dr}`); feedbackView(); } }));
+  }
+
   // ── platform super-admin ──
   async function superView() {
     app.innerHTML = `<header class="top"><div class="row"><h1>Platform admin</h1><button class="out" id="out">Log out</button></div></header><main><div id="view"><span class="spinner"></span></div></main>`;
@@ -396,6 +477,6 @@
       async v => { await call('POST', `/api/super/tenants/${b.dataset.dom}/domain`, v); toast('Domain added'); })));
   }
 
-  const VIEWS = { orders: ordersView, products: productsView, stock: stockView, warehouses: warehousesView, delivery: deliveryView, look: lookView, payments: paymentsView, settings: settingsView, staff: staffView };
+  const VIEWS = { orders: ordersView, products: productsView, stock: stockView, feedback: feedbackView, discounts: discountsView, customers: customersView, warehouses: warehousesView, delivery: deliveryView, look: lookView, payments: paymentsView, settings: settingsView, staff: staffView };
   start();
 })();
