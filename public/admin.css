@@ -160,3 +160,4 @@ dialog h3 { margin: 0; font-size: 19px; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 .tbody .pill { justify-self: start; }
 .img-acts { display: flex; gap: 14px; }
+.demo-hint { margin-top: 18px; } .demo-hint p { margin: 6px 0 0; } .demo-hint code { background: var(--hover); padding: 1px 5px; border-radius: 4px; }

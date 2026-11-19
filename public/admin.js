@@ -58,8 +58,11 @@
         ${field('Email', 'email', '', { type: 'email', attrs: 'autocomplete="email" required' })}
         ${field('Password', 'password', '', { type: 'password', attrs: 'autocomplete="current-password" required' })}
         <button class="btn full">Log in</button></form>
-      <p class="switch muted">New here? <button class="linkish" id="to-signup">Open a store</button></p></main>`;
+      <p class="switch muted">New here? <button class="linkish" id="to-signup">Open a store</button></p><div id="demo-hint"></div></main>`;
     $('#to-signup').onclick = showSignup;
+    api('GET', '/api/platform').then(p => { if (p.demo && $('#demo-hint')) $('#demo-hint').innerHTML = `<div class="panel demo-hint"><b>Demo site</b><p class="small">Sample data, reset from time to time. Try:</p>
+      <p class="small">Store owner: store address <code>sarang</code>, <code>owner@sarang.test</code>, password <code>demo-password-1</code></p>
+      <p class="small">Platform admin: leave the store address empty, <code>admin@demo.test</code>, password <code>demo-admin-pass</code></p></div>`; }).catch(() => {});
     bindForm($('#lf'), async v => {
       const slug = v.slug.toLowerCase();
       const r = await api('POST', '/api/login', { email: v.email, password: v.password }, { tenant: slug || undefined });

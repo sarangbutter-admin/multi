@@ -8,5 +8,16 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
+    X-Frame-Options = "SAMEORIGIN"  # the back office previews the shop in a frame
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# the shop is one page: order links open it too
+[[redirects]]
+  from = "/order/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
