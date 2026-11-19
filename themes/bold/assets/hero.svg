@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400">
+  <circle cx="250" cy="215" r="170" fill="#ffffff" fill-opacity=".13"/>
+  <!-- baguette -->
+  <g transform="rotate(-24 300 170)">
+    <rect x="215" y="140" width="190" height="46" rx="23" fill="#E2A456"/>
+    <rect x="215" y="140" width="190" height="20" rx="10" fill="#EDBB72"/>
+    <path d="M250 150l14 26M285 150l14 26M320 150l14 26M355 150l14 26" stroke="#B9772F" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <!-- milk bottle -->
+  <path d="M138 120h36v22c14 10 20 22 20 38v96h-76v-96c0-16 6-28 20-38z" fill="#FFFFFF"/>
+  <rect x="136" y="108" width="40" height="16" rx="5" fill="#2F7DD1"/>
+  <rect x="118" y="196" width="76" height="40" fill="#2F7DD1"/>
+  <path d="M136 216h40" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+  <!-- greens -->
+  <ellipse cx="210" cy="200" rx="34" ry="60" fill="#2E8B3E" transform="rotate(-18 210 200)"/>
+  <ellipse cx="240" cy="190" rx="30" ry="62" fill="#47A84F" transform="rotate(8 240 190)"/>
+  <path d="M222 150c8 30 10 60 12 96M240 140c-2 34-2 70 0 104" stroke="#1E6A2C" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- crate -->
+  <path d="M96 238h308l-26 122H122z" fill="#C98A4B"/>
+  <path d="M96 238h308v20H96z" fill="#DDA163"/>
+  <path d="M108 288h284M116 324h268" stroke="#A86C34" stroke-width="6" stroke-linecap="round"/>
+  <path d="M190 262v92M310 262v92" stroke="#A86C34" stroke-width="6" stroke-linecap="round"/>
+  <!-- oranges -->
+  <circle cx="320" cy="222" r="34" fill="#F39A1E"/>
+  <circle cx="310" cy="210" r="9" fill="#F8BC5C"/>
+  <circle cx="372" cy="230" r="28" fill="#F5A623"/>
+  <circle cx="364" cy="220" r="7" fill="#F9C66F"/>
+  <!-- apple -->
+  <circle cx="148" cy="236" r="30" fill="#E2453A"/>
+  <path d="M148 206c2-10 8-16 16-18" stroke="#6B3B1E" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <ellipse cx="166" cy="200" rx="13" ry="7" fill="#4CAF50" transform="rotate(-25 166 200)"/>
+  <circle cx="138" cy="226" r="7" fill="#F07A6F"/>
+  <!-- lemon -->
+  <ellipse cx="262" cy="240" rx="30" ry="22" fill="#F7D83B"/>
+  <ellipse cx="254" cy="233" rx="8" ry="5" fill="#FBE98A"/>
+</svg>

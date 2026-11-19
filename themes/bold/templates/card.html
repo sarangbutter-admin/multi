@@ -1,0 +1,17 @@
+<article class="bd-card{{#sold_out}} is-out{{/sold_out}}" data-card="{{id}}">
+  <div class="bd-media">
+    <button class="bd-photo" data-action="product" data-id="{{id}}" aria-label="{{name}}, see details">
+      {{#image}}<img src="{{image}}" alt="" loading="lazy">{{/image}}{{^image}}<span class="bd-ph" aria-hidden="true">{{initial}}</span>{{/image}}
+    </button>
+    {{#badge}}<span class="bd-badge">{{badge}}</span>{{/badge}}
+    <button class="bd-qv" data-action="quickview" data-id="{{id}}" aria-label="Quick view: {{name}}">Quick view</button>
+  </div>
+  <div class="bd-body">
+    {{#rating}}<span class="bd-stars" aria-label="{{avg}} out of 5 stars, {{count}} ratings">★ {{avg}} <small>({{count}})</small></span>{{/rating}}
+    <h3><button data-action="product" data-id="{{id}}">{{name}}</button></h3>
+    <div class="bd-buy">
+      <p class="bd-price">{{#from}}<small>From</small>{{/from}}<span>{{price}}</span></p>
+      {{^sold_out}}<button class="bd-add{{#in_cart}} is-in{{/in_cart}}" data-action="add" data-id="{{id}}" aria-label="Add {{name}} to your order{{#in_cart}}, {{in_cart}} in your order{{/in_cart}}">{{#in_cart}}<b>{{in_cart}}</b>{{/in_cart}}{{^in_cart}}Add{{/in_cart}}</button>{{/sold_out}}
+    </div>
+  </div>
+</article>

@@ -4,7 +4,7 @@ A theme decides how a store's shop looks: the layout of the home page, the produ
 The cart, checkout, quick view, product details and order pages are shared by every theme (like checkout on other platforms),
 so payments always work the same way. Themes can restyle those parts with CSS.
 
-The quickest start: in the back office open **Look → Theme library**, press **Download** on Market or Classic, change the files,
+The quickest start: in the back office open **Look → Theme library**, press **Download** on Market, Bold or Classic, change the files,
 zip the folder and press **Upload a theme**. Uploading a theme with the same name again replaces it.
 
 ## Files

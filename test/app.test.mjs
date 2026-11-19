@@ -411,7 +411,7 @@ test('themes: upload, preview, share to the theme store, approve, use, delete', 
 
   // the gallery starts with the built-ins; Market is the default
   let g = await h.call('GET', '/api/admin/themes', A.o);
-  assert.equal(g.body.current, 'market'); assert.deepEqual(g.body.themes.map(t => t.ref).sort(), ['classic', 'market']);
+  assert.equal(g.body.current, 'market'); assert.deepEqual(g.body.themes.map(t => t.ref).sort(), ['bold', 'classic', 'market']);
   // bad uploads are refused with a reason
   assert.equal((await h.call('POST', '/api/admin/themes', { ...A.o, body: { zip: 'not base64!' } })).body.error, 'bad_theme');
   const evil = writeZip({ 'theme.json': '{"name":"Evil"}', 'templates/layout.html': '<script>steal()</script>', 'templates/card.html': '<div data-card="{{id}}"></div>' }).toString('base64');

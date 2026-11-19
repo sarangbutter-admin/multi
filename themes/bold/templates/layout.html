@@ -1,0 +1,85 @@
+<div class="bd">
+  {{#settings.announcement}}<div class="bd-ann">{{settings.announcement}}</div>{{/settings.announcement}}
+
+  <header class="bd-head">
+    <div class="bd-wrap bd-head-row">
+      <button class="bd-brand" data-action="home">
+        {{#store.logo}}<img src="{{store.logo}}" alt="">{{/store.logo}}{{^store.logo}}<span class="bd-mark" aria-hidden="true">{{store.initial}}</span>{{/store.logo}}
+        <span>{{store.name}}</span>
+      </button>
+      <label class="bd-search">
+        <input type="search" data-action="search" placeholder="Search {{store.name}}" aria-label="Search products" autocomplete="off" enterkeyhint="search">
+      </label>
+      <nav class="bd-tools" aria-label="Your account">
+        {{#can_switch}}<button class="bd-tool" data-action="stores">Stores</button>{{/can_switch}}
+        <button class="bd-tool" data-action="orders">My orders</button>
+        <button class="bd-cart" data-action="cart" aria-label="Open your order">Order <span class="bd-cart-n" data-bind="cart-count">{{cart.count}}</span><span class="bd-cart-sum" data-bind="cart-total">{{cart.total}}</span></button>
+      </nav>
+    </div>
+    {{#has_categories}}
+    <nav class="bd-wrap bd-cats" aria-label="Categories">
+      <button class="bd-cat" data-action="all">All</button>
+      {{#categories}}<button class="bd-cat" data-action="category" data-category="{{name}}">{{name}}</button>{{/categories}}
+    </nav>
+    {{/has_categories}}
+  </header>
+
+  <main>
+    <div data-home>
+      <section class="bd-hero">
+        <div class="bd-wrap bd-hero-row">
+          <div class="bd-hero-copy">
+            <h1>{{#settings.hero_title}}{{settings.hero_title}}{{/settings.hero_title}}{{^settings.hero_title}}{{store.name}}{{/settings.hero_title}}</h1>
+            {{#settings.hero_text}}<p>{{settings.hero_text}}</p>{{/settings.hero_text}}{{^settings.hero_text}}{{#store.about}}<p>{{store.about}}</p>{{/store.about}}{{/settings.hero_text}}
+            {{#settings.hero_button}}<button class="bd-btn" data-action="scroll" data-target="bd-shelves">{{settings.hero_button}}</button>{{/settings.hero_button}}
+          </div>
+          {{#settings.hero_image}}<img class="bd-hero-img" src="{{settings.hero_image}}" alt="">{{/settings.hero_image}}
+        </div>
+      </section>
+
+      <ul class="bd-strip">
+        {{#settings.perk_1}}<li>{{settings.perk_1}}</li>{{/settings.perk_1}}
+        {{#settings.perk_2}}<li>{{settings.perk_2}}</li>{{/settings.perk_2}}
+        {{#settings.perk_3}}<li>{{settings.perk_3}}</li>{{/settings.perk_3}}
+      </ul>
+
+      <div id="bd-shelves" class="bd-wrap">
+        {{#sections}}
+        <section class="bd-sec" data-section="{{name}}">
+          <div class="bd-sec-head">
+            <h2>{{title}}</h2>
+            {{#name}}<button class="bd-link" data-action="category" data-category="{{name}}">See all</button>{{/name}}
+          </div>
+          <div class="bd-grid">{{#products}}{{> card}}{{/products}}</div>
+        </section>
+        {{/sections}}
+        {{^products}}<p class="bd-empty">The shelves are being stocked. Check back soon.</p>{{/products}}
+      </div>
+
+      {{#settings.promo_title}}
+      <section class="bd-wrap"><div class="bd-promo">
+        <div><h2>{{settings.promo_title}}</h2>{{#settings.promo_text}}<p>{{settings.promo_text}}</p>{{/settings.promo_text}}</div>
+        {{#store.whatsapp}}<a class="bd-btn bd-btn-light" href="https://wa.me/{{store.whatsapp}}" target="_blank">Message us on WhatsApp</a>{{/store.whatsapp}}
+      </div></section>
+      {{/settings.promo_title}}
+    </div>
+
+    <section class="bd-wrap bd-results" data-results hidden>
+      <div class="bd-sec-head"><h2 data-bind="results-title"></h2><button class="bd-link" data-action="all">Show everything</button></div>
+      <div class="bd-grid" data-slot="results"></div>
+    </section>
+  </main>
+
+  <footer class="bd-foot">
+    <div class="bd-wrap bd-foot-row">
+      <div><b>{{store.name}}</b>{{#store.about}}<p>{{store.about}}</p>{{/store.about}}</div>
+      <div class="bd-foot-links">
+        <button data-action="orders">My orders</button>
+        <button data-action="cart">Your order</button>
+        {{#store.whatsapp}}<a href="https://wa.me/{{store.whatsapp}}" target="_blank">WhatsApp</a>{{/store.whatsapp}}
+        {{#can_switch}}<button data-action="stores">Other stores</button>{{/can_switch}}
+      </div>
+    </div>
+    <p class="bd-wrap bd-copy">© {{year}} {{store.name}}</p>
+  </footer>
+</div>
