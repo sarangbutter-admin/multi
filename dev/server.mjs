@@ -1,7 +1,7 @@
 // Local dev server with an in-memory database and demo data: npm run dev → http://localhost:8888
 //   demo coupon WELCOME10, business login cafe.biru / demo-password-1 (store: sarang)
 //   shop:        http://localhost:8888/?store=sarang
-//   back office: http://localhost:8888/admin   (owner: owner@sarang.test / demo-password-1, platform admin: admin@demo.test / demo-admin-pass)
+//   back office: http://localhost:8888/admin   (Store address box: sarang → owner@sarang.test / demo-password-1; leave the box empty for platform admin admin@demo.test / demo-admin-pass)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
